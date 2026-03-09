@@ -1,0 +1,80 @@
+---
+title: "RiderDto"
+description: "Data transfer object for delivery courier/rider information"
+---
+
+## Overview
+
+The `RiderDto` represents information about a delivery courier (rider) in the KDS system. It contains identification details for both the rider and the associated order, used for tracking courier assignments and managing delivery workflows.
+
+## Type Definition
+
+```typescript
+export type RiderDto = {
+  id: string
+  name: string
+  orderId: string
+  displayNumber: string
+  riderNumber: number
+  partnerName?: string
+}
+```
+
+## Fields
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the rider in the system
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Full name of the delivery courier/rider
+</ResponseField>
+
+<ResponseField name="orderId" type="string" required>
+  Unique identifier of the order assigned to this rider
+</ResponseField>
+
+<ResponseField name="displayNumber" type="string" required>
+  Human-readable order number for display purposes (e.g., "#1234")
+</ResponseField>
+
+<ResponseField name="riderNumber" type="number" required>
+  Numeric identifier or sequence number for the rider, potentially used for display or sorting
+</ResponseField>
+
+<ResponseField name="partnerName" type="string">
+  Name of the restaurant or merchant partner associated with the rider's current assignment
+</ResponseField>
+
+## Usage
+
+This DTO is typically used in:
+
+- Courier assignment interfaces
+- Delivery tracking screens
+- Order-to-courier matching displays
+- Rider management dashboards
+- Pickup coordination views
+
+## Common Scenarios
+
+### Rider Assignment
+
+When a rider is assigned to pick up an order, the `RiderDto` links the courier to the specific order through the `orderId` field.
+
+### Multi-Partner Operations
+
+The optional `partnerName` field allows tracking which restaurant or merchant the rider is currently serving, useful in cloud kitchen or multi-tenant scenarios.
+
+### Display Organization
+
+The combination of `displayNumber` and `riderNumber` provides flexible options for organizing and presenting rider information in the user interface.
+
+## Related Types
+
+- [OrderListDto](/api/dtos/order-list) - Order list information including courier assignment
+- [OrderDetailDto](/api/dtos/order-details) - Detailed order information with courier name
+
+## Source
+
+`dtos/Rider.dto.ts`

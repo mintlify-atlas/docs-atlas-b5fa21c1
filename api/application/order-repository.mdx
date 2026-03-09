@@ -1,0 +1,233 @@
+---
+title: 'OrderRepository'
+description: 'Repository interface for managing order data operations'
+---
+
+## Overview
+
+The `OrderRepository` interface defines the contract for all order data operations in the application layer. It provides methods for retrieving order lists, updating order statuses, and fetching detailed order information.
+
+**Source**: `application/order/order-repository.ts`
+
+## Interface Definition
+
+```typescript
+interface OrderRepository {
+  listBoard(): Promise<OrderListDto[]>;
+  updateStatus(id: string, toStatus: OrderStatus): Promise<void>;
+  getDetail(id: string): Promise<OrderDetailDto>;
+}
+```
+
+## Methods
+
+### listBoard()
+
+Retrieves the list of all orders for the order board display.
+
+```typescript
+listBoard(): Promise<OrderListDto[]>
+```
+
+#### Returns
+
+<ResponseField name="Promise<OrderListDto[]>" type="Promise">
+  A promise that resolves to an array of order list DTOs.
+</ResponseField>
+
+#### OrderListDto Structure
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the order
+</ResponseField>
+
+<ResponseField name="partnerName" type="string">
+  Name of the partner/restaurant
+</ResponseField>
+
+<ResponseField name="partnerImage" type="string">
+  URL to the partner's image
+</ResponseField>
+
+<ResponseField name="displayNumber" type="string" required>
+  Human-readable order number for display
+</ResponseField>
+
+<ResponseField name="status" type="OrderStatus" required>
+  Current status of the order (RECEIVED, CONFIRMED, PREPARING, READY, PICKED_UP, DELIVERED, CANCELLED)
+</ResponseField>
+
+<ResponseField name="priority" type="OrderPriority" required>
+  Order priority level (NORMAL or HIGH)
+</ResponseField>
+
+<ResponseField name="activeTimer" type="string">
+  Active timer value for the order
+</ResponseField>
+
+<ResponseField name="courierName" type="string">
+  Name of the assigned courier
+</ResponseField>
+
+#### Example
+
+```typescript
+const orders = await orderRepository.listBoard();
+console.log(`Found ${orders.length} orders`);
+```
+
+---
+
+### updateStatus()
+
+Updates the status of a specific order.
+
+```typescript
+updateStatus(id: string, toStatus: OrderStatus): Promise<void>
+```
+
+#### Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the order to update
+</ParamField>
+
+<ParamField path="toStatus" type="OrderStatus" required>
+  The new status to set for the order. Must be one of:
+  - `RECEIVED`
+  - `CONFIRMED`
+  - `PREPARING`
+  - `READY`
+  - `PICKED_UP`
+  - `DELIVERED`
+  - `CANCELLED`
+</ParamField>
+
+#### Returns
+
+<ResponseField name="Promise<void>" type="Promise">
+  A promise that resolves when the status update is complete
+</ResponseField>
+
+#### Example
+
+```typescript
+await orderRepository.updateStatus('order-123', 'CONFIRMED');
+console.log('Order status updated successfully');
+```
+
+<Note>
+  Status transitions should follow the natural order flow. Attempting invalid status transitions may result in errors depending on the implementation.
+</Note>
+
+---
+
+### getDetail()
+
+Retrieves detailed information about a specific order.
+
+```typescript
+getDetail(id: string): Promise<OrderDetailDto>
+```
+
+#### Parameters
+
+<ParamField path="id" type="string" required>
+  The unique identifier of the order to retrieve
+</ParamField>
+
+#### Returns
+
+<ResponseField name="Promise<OrderDetailDto>" type="Promise">
+  A promise that resolves to the order detail DTO
+</ResponseField>
+
+#### OrderDetailDto Structure
+
+<ResponseField name="customerName" type="string">
+  Name of the customer who placed the order
+</ResponseField>
+
+<ResponseField name="customerPhone" type="string">
+  Phone number of the customer
+</ResponseField>
+
+<ResponseField name="deliveryAddress" type="string">
+  Delivery address for the order
+</ResponseField>
+
+<ResponseField name="notes" type="string">
+  Special instructions or notes for the order
+</ResponseField>
+
+<ResponseField name="courierName" type="string">
+  Name of the assigned courier
+</ResponseField>
+
+<ResponseField name="items" type="array" required>
+  Array of order items
+  
+  <ResponseField name="id" type="string" required>
+    Unique identifier for the item
+  </ResponseField>
+  
+  <ResponseField name="name" type="string" required>
+    Name of the item
+  </ResponseField>
+  
+  <ResponseField name="image" type="string" required>
+    URL to the item image
+  </ResponseField>
+  
+  <ResponseField name="price" type="number" required>
+    Price of a single unit
+  </ResponseField>
+  
+  <ResponseField name="currency" type="string" required>
+    Currency code (e.g., USD, EUR)
+  </ResponseField>
+  
+  <ResponseField name="qty" type="number" required>
+    Quantity ordered
+  </ResponseField>
+</ResponseField>
+
+#### Example
+
+```typescript
+const detail = await orderRepository.getDetail('order-123');
+console.log(`Order for ${detail.customerName}`);
+console.log(`Items: ${detail.items.length}`);
+```
+
+## Type Definitions
+
+### OrderStatus
+
+```typescript
+type OrderStatus =
+  | "RECEIVED"
+  | "CONFIRMED"
+  | "PREPARING"
+  | "READY"
+  | "PICKED_UP"
+  | "DELIVERED"
+  | "CANCELLED";
+```
+
+### OrderPriority
+
+```typescript
+type OrderPriority = "NORMAL" | "HIGH";
+```
+
+## Implementation Notes
+
+<Note>
+  The `OrderRepository` is an interface and requires a concrete implementation. The actual data source (HTTP API, local storage, etc.) is determined by the implementation class.
+</Note>
+
+## Related
+
+- [OrderRealtime](/api/application/order-realtime) - Real-time order event handling
+- [useOrderDetail Hook](/api/application/hooks) - React hook for fetching order details

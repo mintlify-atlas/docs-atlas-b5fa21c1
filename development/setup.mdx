@@ -1,0 +1,240 @@
+---
+title: "Development Setup"
+description: "Get started with KDS Frontend development - installation, configuration, and running the application"
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+
+<CardGroup cols={2}>
+  <Card title="Node.js" icon="node-js">
+    Version 20.x or higher recommended
+  </Card>
+  <Card title="pnpm" icon="box">
+    Fast, disk space efficient package manager
+  </Card>
+</CardGroup>
+
+<Note>
+  This project uses **pnpm** as the package manager. If you don't have it installed, run:
+  ```bash
+  npm install -g pnpm
+  ```
+</Note>
+
+## Installation
+
+Follow these steps to set up your development environment:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone <repository-url>
+    cd kds-frontend
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    Install all required packages using pnpm:
+    ```bash
+    pnpm install
+    ```
+
+    This will install all dependencies defined in `package.json`, including:
+    - **Next.js 14** - React framework
+    - **TypeScript 5** - Type safety
+    - **React 18** - UI library
+    - **@dnd-kit** - Drag and drop functionality
+    - **Socket.io-client** - Real-time updates
+    - **Axios** - HTTP client
+    - **SASS** - Styling
+    - **Biome** - Linting and formatting
+  </Step>
+
+  <Step title="Configure environment variables">
+    Create a `.env.local` file in the root directory:
+    ```bash
+    cp .env.example .env.local
+    ```
+
+    Update the API URL to point to your backend:
+    ```bash .env.local
+    NEXT_PUBLIC_API_URL=http://localhost:3004
+    ```
+
+    <Note>
+      The `NEXT_PUBLIC_` prefix makes this variable accessible in the browser. This is required for client-side API calls.
+    </Note>
+  </Step>
+</Steps>
+
+## Running the Development Server
+
+Start the Next.js development server:
+
+```bash
+pnpm dev
+```
+
+The application will be available at [http://localhost:3000](http://localhost:3000)
+
+<Accordion title="Development server features">
+  - **Fast Refresh** - Instant feedback on code changes
+  - **Hot Module Replacement** - Updates without full page reload
+  - **Error overlay** - Detailed error messages in the browser
+  - **TypeScript checking** - Real-time type validation
+</Accordion>
+
+## Building for Production
+
+Create an optimized production build:
+
+<CodeGroup>
+```bash Build
+pnpm build
+```
+
+```bash Start production server
+pnpm start
+```
+</CodeGroup>
+
+The build process:
+1. Compiles TypeScript to JavaScript
+2. Bundles and minifies all assets
+3. Optimizes images and fonts
+4. Generates static pages where possible
+5. Creates server-side rendering bundles
+
+<Note>
+  Always test your production build locally before deploying to ensure everything works as expected.
+</Note>
+
+## Linting and Code Quality
+
+This project uses **Biome** for fast, comprehensive code linting and formatting.
+
+### Running the Linter
+
+```bash
+pnpm lint
+```
+
+### Biome Configuration
+
+The project uses a custom Biome configuration (`biome.json`) with:
+
+<CodeGroup>
+```json biome.json
+{
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "tab",
+    "indentWidth": 4
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "asNeeded"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  }
+}
+```
+</CodeGroup>
+
+<Accordion title="Biome features enabled">
+  - **Auto-organize imports** - Sorts imports alphabetically
+  - **Sorted attributes** - Consistent JSX attribute ordering
+  - **Sorted properties** - Alphabetical object keys
+  - **Tab indentation** - 4-space tabs for consistency
+  - **Double quotes** - Enforced quote style
+  - **Smart semicolons** - Added only when needed
+</Accordion>
+
+## TypeScript Configuration
+
+The project uses strict TypeScript settings for maximum type safety:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@/*": ["./*"]
+    }
+  }
+}
+```
+
+<Note>
+  **`exactOptionalPropertyTypes`** is enabled, which means you cannot pass `undefined` explicitly to optional properties. This prevents common bugs and enforces cleaner type contracts.
+</Note>
+
+## Path Aliases
+
+The project uses the `@/` alias for cleaner imports:
+
+<CodeGroup>
+```typescript Before
+import { OrderStatus } from '../../../domain/order/order-status';
+```
+
+```typescript After
+import { OrderStatus } from '@/domain/order/order-status';
+```
+</CodeGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Port 3000 already in use">
+    If port 3000 is occupied, Next.js will automatically try port 3001. You can also specify a custom port:
+    ```bash
+    pnpm dev -- -p 3001
+    ```
+  </Accordion>
+
+  <Accordion title="Module not found errors">
+    Clear the cache and reinstall dependencies:
+    ```bash
+    rm -rf node_modules .next
+    pnpm install
+    ```
+  </Accordion>
+
+  <Accordion title="TypeScript errors">
+    Ensure you're using TypeScript 5.x:
+    ```bash
+    pnpm list typescript
+    ```
+  </Accordion>
+
+  <Accordion title="WebSocket connection failed">
+    Verify that:
+    - The backend server is running
+    - `NEXT_PUBLIC_API_URL` is correctly set
+    - There are no CORS issues
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Project Structure" icon="folder-tree" href="/development/structure">
+    Learn about the architecture and directory organization
+  </Card>
+  <Card title="Styling Guide" icon="palette" href="/development/styling">
+    Understand the SCSS modules and theming system
+  </Card>
+</CardGroup>

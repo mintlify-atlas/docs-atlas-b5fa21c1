@@ -1,0 +1,483 @@
+---
+title: 'Order Status'
+description: 'Complete guide to order statuses and state transitions in the KDS system'
+icon: 'arrows-turn-right'
+---
+
+The KDS Frontend uses a strict state machine to manage order statuses. Each order follows a defined lifecycle from creation to completion, with clear rules about which transitions are allowed.
+
+## Order Status Types
+
+The application defines seven distinct order statuses:
+
+```typescript domain/order/order-status.ts
+export type OrderStatus =
+  | "RECEIVED"
+  | "CONFIRMED"
+  | "PREPARING"
+  | "READY"
+  | "PICKED_UP"
+  | "DELIVERED"
+  | "CANCELLED";
+```
+
+### Status Definitions
+
+<Accordion title="RECEIVED">
+  **RECEIVED** - The initial status when a new order is created and received by the kitchen.
+
+  **Characteristics:**
+  - First status in the order lifecycle
+  - Indicates the order has been placed but not yet acknowledged
+  - Usually displayed in the first column of the Kanban board
+
+  **Possible Transitions:**
+  - → `CONFIRMED` (order acknowledged by kitchen)
+  - → `CANCELLED` (order rejected or cancelled)
+</Accordion>
+
+<Accordion title="CONFIRMED">
+  **CONFIRMED** - The order has been acknowledged by the kitchen staff and is queued for preparation.
+
+  **Characteristics:**
+  - Kitchen has accepted the order
+  - Order is in the queue, waiting to be prepared
+  - Customer is notified that their order is confirmed
+
+  **Possible Transitions:**
+  - → `PREPARING` (kitchen starts preparing)
+  - → `CANCELLED` (order cancelled before preparation)
+</Accordion>
+
+<Accordion title="PREPARING">
+  **PREPARING** - The kitchen is actively preparing the order.
+
+  **Characteristics:**
+  - Food is being cooked/assembled
+  - Most active phase in the kitchen
+  - Cannot be moved backward to previous statuses
+
+  **Possible Transitions:**
+  - → `READY` (preparation complete)
+  - → `CANCELLED` (order cancelled during preparation)
+</Accordion>
+
+<Accordion title="READY">
+  **READY** - The order is complete and ready for pickup by the delivery courier.
+
+  **Characteristics:**
+  - Food is prepared and packaged
+  - Waiting for courier to pick up
+  - Time-sensitive status (food should be picked up quickly)
+
+  **Possible Transitions:**
+  - → `PICKED_UP` (courier collects the order)
+  - → `CANCELLED` (order not picked up or cancelled)
+</Accordion>
+
+<Accordion title="PICKED_UP">
+  **PICKED_UP** - The courier has collected the order and is on the way to deliver it.
+
+  **Characteristics:**
+  - Order is in transit
+  - Assigned to a specific courier
+  - Customer can track delivery progress
+  - Displayed in the Riders section
+
+  **Possible Transitions:**
+  - → `DELIVERED` (order successfully delivered)
+
+  <Warning>
+    Unlike other statuses, `PICKED_UP` orders **cannot be cancelled**. Once picked up, the order must be completed.
+  </Warning>
+</Accordion>
+
+<Accordion title="DELIVERED">
+  **DELIVERED** - The order has been successfully delivered to the customer.
+
+  **Characteristics:**
+  - Final successful status
+  - Order lifecycle complete
+  - No further transitions possible
+
+  **Possible Transitions:**
+  - None (terminal status)
+</Accordion>
+
+<Accordion title="CANCELLED">
+  **CANCELLED** - The order was cancelled before completion.
+
+  **Characteristics:**
+  - Terminal status (like DELIVERED)
+  - Can be reached from any status except PICKED_UP and DELIVERED
+  - Requires handling refunds and notifications
+
+  **Possible Transitions:**
+  - None (terminal status)
+</Accordion>
+
+## Status Transition Rules
+
+The application enforces strict rules about which status transitions are allowed. These rules are defined in the domain layer:
+
+```typescript domain/order/order-transitions.ts
+const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  RECEIVED: ["CONFIRMED", "CANCELLED"],
+  CONFIRMED: ["PREPARING", "CANCELLED"],
+  PREPARING: ["READY", "CANCELLED"],
+  READY: ["PICKED_UP", "CANCELLED"],
+  PICKED_UP: ["DELIVERED"],
+  DELIVERED: [],
+  CANCELLED: [],
+};
+
+export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
+  return ALLOWED_TRANSITIONS[from].includes(to);
+}
+```
+
+### Transition Validation
+
+The `canTransition` function is used throughout the application to validate status changes:
+
+```typescript components/Kanban/Kanban.tsx
+const onDragEnd = (event: DragEndEvent) => {
+  const orderId = String(active.id);
+  const targetStatus = String(over.id) as OrderStatus;
+  
+  const current = findOrder(orderId);
+  if (!current) return;
+
+  // Validate transition is allowed
+  if (!canTransition(current.status, targetStatus)) {
+    return; // Reject invalid transition
+  }
+
+  updateOrderStatus(orderId, targetStatus);
+};
+```
+
+## Transition Flow Diagram
+
+<Steps>
+  <Step title="RECEIVED">
+    New order arrives in the system
+    
+    **Next Steps:**
+    - Confirm → `CONFIRMED`
+    - Cancel → `CANCELLED`
+  </Step>
+
+  <Step title="CONFIRMED">
+    Kitchen acknowledges the order
+    
+    **Next Steps:**
+    - Start preparation → `PREPARING`
+    - Cancel before prep → `CANCELLED`
+  </Step>
+
+  <Step title="PREPARING">
+    Kitchen is actively working on the order
+    
+    **Next Steps:**
+    - Complete preparation → `READY`
+    - Cancel during prep → `CANCELLED`
+  </Step>
+
+  <Step title="READY">
+    Order is ready for pickup
+    
+    **Next Steps:**
+    - Courier picks up → `PICKED_UP`
+    - Cancel if not picked up → `CANCELLED`
+  </Step>
+
+  <Step title="PICKED_UP">
+    Courier is delivering the order
+    
+    **Next Steps:**
+    - Deliver to customer → `DELIVERED`
+    
+    <Warning>
+      Cannot be cancelled once picked up
+    </Warning>
+  </Step>
+
+  <Step title="DELIVERED or CANCELLED">
+    Order lifecycle complete (terminal state)
+    
+    **Next Steps:**
+    - None (end of lifecycle)
+  </Step>
+</Steps>
+
+## Status Labels
+
+The UI displays human-friendly labels for each status:
+
+```typescript components/order/constants/order-status-labels.ts
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  RECEIVED: "Received",
+  CONFIRMED: "Confirmed",
+  PREPARING: "Preparing",
+  READY: "Ready",
+  PICKED_UP: "Picked Up",
+  DELIVERED: "Delivered",
+  CANCELLED: "Cancelled",
+};
+```
+
+## Implementation Examples
+
+<Tabs>
+  <Tab title="Updating Status">
+    ### Updating Order Status
+
+    To update an order's status, use the `updateOrderStatus` method from the Orders context:
+
+    ```typescript
+    import { useOrders } from "@/contexts/Orders.context";
+    import { canTransition } from "@/domain/order/order-transitions";
+
+    function MyComponent() {
+      const { orders, updateOrderStatus } = useOrders();
+
+      const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
+        const order = orders.find(o => o.id === orderId);
+        
+        if (!order) return;
+
+        // Validate transition
+        if (!canTransition(order.status, newStatus)) {
+          console.error("Invalid transition");
+          return;
+        }
+
+        // Update status
+        await updateOrderStatus(orderId, newStatus);
+      };
+
+      return (
+        // Your component JSX
+      );
+    }
+    ```
+
+    <Note>
+      The `updateOrderStatus` method performs optimistic updates, immediately reflecting the change in the UI before the server confirms it.
+    </Note>
+  </Tab>
+
+  <Tab title="Status Validation">
+    ### Validating Transitions
+
+    Always validate transitions before attempting to update an order:
+
+    ```typescript
+    import { OrderStatus } from "@/domain/order/order-status";
+    import { canTransition } from "@/domain/order/order-transitions";
+
+    function validateOrderTransition(
+      currentStatus: OrderStatus,
+      targetStatus: OrderStatus
+    ): { valid: boolean; error?: string } {
+      if (currentStatus === targetStatus) {
+        return { valid: false, error: "Order is already in this status" };
+      }
+
+      if (!canTransition(currentStatus, targetStatus)) {
+        return { 
+          valid: false, 
+          error: `Cannot transition from ${currentStatus} to ${targetStatus}` 
+        };
+      }
+
+      return { valid: true };
+    }
+
+    // Usage
+    const result = validateOrderTransition("RECEIVED", "PREPARING");
+    if (!result.valid) {
+      console.error(result.error);
+    }
+    ```
+  </Tab>
+
+  <Tab title="Repository Implementation">
+    ### Repository Status Update
+
+    The infrastructure layer handles the HTTP request to update order status:
+
+    ```typescript infraestructure/http/order.repository.ts
+    export class HttpOrderRepository implements OrderRepository {
+      constructor(private readonly http: HttpClient) {}
+
+      async updateStatus(id: string, toStatus: OrderStatus): Promise<void> {
+        await this.http.patch<UpdateStatusResponse>(
+          `/api/v1/orders/${id}/status`,
+          { toStatus }
+        );
+      }
+    }
+    ```
+
+    **Request Format:**
+    ```http
+    PATCH /api/v1/orders/{orderId}/status
+    Content-Type: application/json
+
+    {
+      "toStatus": "PREPARING"
+    }
+    ```
+
+    **Response Format:**
+    ```json
+    {
+      "status": 200,
+      "code": "ORDER_STATUS_UPDATED",
+      "message": "Order status updated successfully"
+    }
+    ```
+  </Tab>
+
+  <Tab title="Real-time Updates">
+    ### Handling Real-time Status Updates
+
+    When an order status changes on the server, all connected clients receive an update:
+
+    ```typescript contexts/Orders.context.tsx
+    useEffect(() => {
+      const upsert = (incoming: OrderListDto) => {
+        setOrders((prev) => {
+          const idx = prev.findIndex((o) => o.id === incoming.id);
+          if (idx === -1) return [incoming, ...prev];
+
+          const next = [...prev];
+          next[idx] = incoming;
+          return next;
+        });
+      };
+
+      orderOrchestrator.connect({
+        onCreated: upsert,
+        onUpdated: upsert, // Handles status updates
+      });
+
+      return () => {
+        orderOrchestrator.disconnect();
+      };
+    }, []);
+    ```
+
+    The socket listener automatically updates the UI when status changes occur:
+
+    ```typescript infraestructure/socket/order-realtime.socket.ts
+    this.socket.on("order.status.updated", (order: OrderListDto) => {
+      events.onUpdated?.(order);
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Terminal Statuses
+
+Two statuses are **terminal**, meaning they are the end of an order's lifecycle:
+
+<CardGroup cols={2}>
+  <Card title="DELIVERED" icon="circle-check" color="#10b981">
+    Successful completion of the order
+    
+    - Customer received their food
+    - Payment processed
+    - Order archived
+  </Card>
+  
+  <Card title="CANCELLED" icon="circle-xmark" color="#ef4444">
+    Order was cancelled before delivery
+    
+    - Refund may be issued
+    - Kitchen stops preparation
+    - Customer notified
+  </Card>
+</CardGroup>
+
+<Warning>
+  Terminal statuses have no outgoing transitions. Once an order reaches `DELIVERED` or `CANCELLED`, it cannot be changed.
+</Warning>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Validate Transitions">
+    Before updating an order status, always use the `canTransition` function to ensure the transition is valid:
+
+    ```typescript
+    if (!canTransition(currentStatus, newStatus)) {
+      throw new Error("Invalid status transition");
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Handle Errors Gracefully">
+    Status updates can fail due to network issues or validation errors. Always handle errors and provide feedback to users:
+
+    ```typescript
+    try {
+      await updateOrderStatus(orderId, newStatus);
+    } catch (error) {
+      console.error("Failed to update order status:", error);
+      // Rollback optimistic update
+      // Show error message to user
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use Optimistic Updates">
+    The Orders context implements optimistic updates to provide immediate feedback while the server processes the request:
+
+    ```typescript
+    // Update UI immediately
+    setOrders((curr) => curr.map((o) => (o.id === id ? { ...o, status } : o)));
+
+    try {
+      // Then update server
+      await orderOrchestrator.updateOrderState(id, status);
+    } catch (e) {
+      // Rollback on error
+      setOrders((curr) => curr.map((o) => (o.id === id ? previous! : o)));
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Respect Terminal Statuses">
+    Never attempt to transition from `DELIVERED` or `CANCELLED` statuses. These are final states:
+
+    ```typescript
+    const isTerminalStatus = (status: OrderStatus): boolean => {
+      return status === "DELIVERED" || status === "CANCELLED";
+    };
+
+    if (isTerminalStatus(order.status)) {
+      console.warn("Cannot modify terminal status");
+      return;
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Concepts
+
+<CardGroup cols={3}>
+  <Card title="Architecture" icon="layer-group" href="/concepts/architecture">
+    Learn about the layered architecture
+  </Card>
+  
+  <Card title="Real-time Sync" icon="tower-broadcast" href="/concepts/realtime-sync">
+    Understand WebSocket synchronization
+  </Card>
+  
+  <Card title="Order Repository" icon="database" href="/api/application/order-repository">
+    API reference for order operations
+  </Card>
+</CardGroup>

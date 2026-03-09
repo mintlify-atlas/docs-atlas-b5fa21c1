@@ -1,0 +1,305 @@
+---
+title: Kanban
+description: Drag-and-drop kanban board for managing order workflows across different status columns
+---
+
+## Overview
+
+The `Kanban` component is the core order management interface that provides a visual, interactive kanban board for tracking orders through their lifecycle. It implements drag-and-drop functionality using `@dnd-kit/core`, allowing users to move orders between status columns and automatically update their state.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Drag & Drop" icon="hand-pointer">
+    Intuitive drag-and-drop interface for moving orders between statuses
+  </Card>
+  <Card title="Real-time Updates" icon="sync">
+    Automatically updates order status when dropped in valid columns
+  </Card>
+  <Card title="Rider View" icon="motorcycle">
+    Special rendering for picked-up orders showing rider information
+  </Card>
+  <Card title="Order Details" icon="file-lines">
+    Click any order card to open a detailed modal view
+  </Card>
+</CardGroup>
+
+## Architecture
+
+### State Management
+
+The Kanban component integrates with the Orders context to manage order data:
+
+```tsx
+const { ordersByStatus, updateOrderStatus } = useOrders();
+```
+
+- **ordersByStatus**: Object mapping each order status to an array of orders
+- **updateOrderStatus**: Function to transition orders between statuses
+
+### Drag-and-Drop Flow
+
+<Steps>
+  <Step title="Drag Start">
+    When a user starts dragging an order card, the `onDragStart` handler stores the active order in state for rendering in the drag overlay
+  </Step>
+  <Step title="Drag Over">
+    The order card follows the cursor, rendered in a `DragOverlay` component
+  </Step>
+  <Step title="Drop Validation">
+    On drop, the component validates:
+    - The target column represents a valid status
+    - The transition is allowed by business rules (`canTransition`)
+    - The transition is permitted from the UI (`canTransitionFromUi`)
+  </Step>
+  <Step title="Status Update">
+    If valid, `updateOrderStatus` is called to persist the change
+  </Step>
+</Steps>
+
+## Component Structure
+
+```tsx
+export default function Kanban() {
+  const { ordersByStatus, updateOrderStatus } = useOrders();
+  
+  const [activeOrder, setActiveOrder] = useState<OrderListDto | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+  );
+
+  // ... handlers and render logic
+}
+```
+
+### Key State Variables
+
+<ParamField path="activeOrder" type="OrderListDto | null">
+  The order currently being dragged. Used to render the drag overlay.
+</ParamField>
+
+<ParamField path="selectedOrderId" type="string | null">
+  ID of the order selected for detailed view. Opens the OrderDetailModal when set.
+</ParamField>
+
+## Computed Data
+
+### Riders List
+
+The component dynamically computes a list of active riders from picked-up orders:
+
+```tsx
+const riders: RiderDto[] = useMemo(() => {
+  return Object.values(ordersByStatus)
+    .flat()
+    .filter((order) => order.status === "PICKED_UP" && order.courierName)
+    .map(
+      (order): RiderDto => ({
+        id: order.id,
+        name: order.courierName!,
+        orderId: order.id,
+        displayNumber: order.displayNumber,
+        riderNumber: Number(order.id.slice(-3)) || 100,
+        ...(order.partnerName && {
+          partnerName: order.partnerName,
+        }),
+      }),
+    );
+}, [ordersByStatus]);
+```
+
+<Note>
+  The riders list is memoized for performance. It filters all orders with `PICKED_UP` status and a courier name, transforming them into rider view models.
+</Note>
+
+### Orders Map
+
+A `Map` is maintained for efficient order lookup during drag operations:
+
+```tsx
+const ordersMap = useMemo(() => {
+  const map = new Map<string, OrderListDto>();
+  
+  Object.values(ordersByStatus)
+    .flat()
+    .forEach((order) => {
+      map.set(order.id, order);
+    });
+
+  return map;
+}, [ordersByStatus]);
+```
+
+## Column Rendering
+
+The kanban board renders columns based on the `ORDER_COLUMNS` configuration:
+
+```tsx
+{ORDER_COLUMNS.map((status) => {
+  const columnOrders = ordersByStatus[status] ?? [];
+
+  return (
+    <Column
+      key={status}
+      status={status}
+      title={ORDER_STATUS_LABELS[status]}
+      count={columnOrders.length}
+    >
+      {status === "PICKED_UP"
+        ? riders.map((rider) => (
+            <DraggableRiderCard
+              key={rider.id}
+              rider={rider}
+              onClick={setSelectedOrderId}
+            />
+          ))
+        : columnOrders.map((order) => (
+            <DraggableOrderCard
+              key={order.id}
+              order={order}
+              onClick={setSelectedOrderId}
+            />
+          ))}
+    </Column>
+  );
+})}
+```
+
+<Note>
+  The `PICKED_UP` column receives special treatment, rendering `DraggableRiderCard` components instead of regular order cards.
+</Note>
+
+## Drag Validation
+
+The component implements a two-layer validation system:
+
+<Tabs>
+  <Tab title="Domain Rules">
+    ```tsx
+    if (!canTransition(current.status, targetStatus)) return;
+    ```
+    
+    Validates that the transition is allowed by business domain rules (e.g., can't go from RECEIVED directly to DELIVERED).
+  </Tab>
+  <Tab title="UI Policy">
+    ```tsx
+    if (!canTransitionFromUi(current.status, targetStatus)) return;
+    ```
+    
+    Validates that the transition is permitted from the user interface. Some valid domain transitions may be blocked from UI-based changes.
+  </Tab>
+</Tabs>
+
+## Event Handlers
+
+### onDragStart
+
+```tsx
+const onDragStart = (event: DragStartEvent) => {
+  const id = String(event.active.id);
+  setActiveOrder(findOrder(id));
+};
+```
+
+Captures the dragged order and stores it in state for overlay rendering.
+
+### onDragEnd
+
+```tsx
+const onDragEnd = (event: DragEndEvent) => {
+  const { active, over } = event;
+  
+  setActiveOrder(null);
+  
+  if (!over) return;
+  
+  const orderId = String(active.id);
+  const targetStatus = String(over.id) as OrderStatus;
+  
+  const current = findOrder(orderId);
+  if (!current) return;
+  
+  if (current.status === targetStatus) return;
+  
+  if (!canTransition(current.status, targetStatus)) return;
+  
+  if (!canTransitionFromUi(current.status, targetStatus)) return;
+  
+  updateOrderStatus(orderId, targetStatus);
+};
+```
+
+Handles the drop event with comprehensive validation before updating the order status.
+
+## Drag Overlay
+
+Provides visual feedback during dragging:
+
+```tsx
+<DragOverlay>
+  {activeOrder ? (
+    activeOrder.status === "PICKED_UP" ? (
+      <Riders rider={mapOrderToRiderViewModel(activeOrder)} />
+    ) : (
+      <OrderCard order={activeOrder} isOverlay />
+    )
+  ) : null}
+</DragOverlay>
+```
+
+<Note>
+  The overlay renders either a Riders component or an OrderCard depending on the order's status, maintaining visual consistency.
+</Note>
+
+## Integration Points
+
+### Context Dependencies
+
+- **OrdersContext**: Provides order data and status update functionality
+- **ThemeContext**: (Implicit) Styling adapts to the current theme
+
+### Child Components
+
+- **Column**: Container for orders in each status
+- **DraggableOrderCard**: Draggable wrapper for OrderCard
+- **DraggableRiderCard**: Draggable wrapper for Riders
+- **OrderDetailModal**: Modal for viewing order details
+
+## Usage Example
+
+```tsx
+import Kanban from "@/components/Kanban/Kanban";
+import { OrdersProvider } from "@/contexts/Orders.context";
+
+function OrdersPage() {
+  return (
+    <OrdersProvider>
+      <Kanban />
+    </OrdersProvider>
+  );
+}
+```
+
+<Warning>
+  The Kanban component must be wrapped in an `OrdersProvider` to function correctly. It will throw an error if the Orders context is not available.
+</Warning>
+
+## Performance Optimizations
+
+1. **Memoized Computations**: Riders list and orders map are memoized to avoid unnecessary recalculations
+2. **Pointer Sensor Constraint**: 6px activation distance prevents accidental drags
+3. **Efficient Lookups**: Orders Map enables O(1) lookup during drag operations
+
+## Related Components
+
+- [OrderCard](/components/order-card): Individual order card display
+- [Riders](/components/riders): Rider card for picked-up orders
+- Column: Status column container (internal component)
+
+## Source Location
+
+`components/Kanban/Kanban.tsx:1`

@@ -1,0 +1,401 @@
+---
+title: ThemeSwitch
+description: Toggle button for switching between light and dark theme modes
+---
+
+## Overview
+
+The `ThemeSwitch` component is a simple, accessible toggle button that allows users to switch between light and dark themes. It displays an animated sun or moon icon based on the current theme and integrates with the application's theme context.
+
+<Note>
+  This component relies on the Theme context being available in the component tree. Ensure your app is wrapped with a `ThemeProvider`.
+</Note>
+
+## Component Structure
+
+```tsx
+import { Sun, Moon } from "lucide-react";
+import { useTheme } from "@/contexts/Theme.context";
+import s from "./ThemeSwitch.module.scss";
+
+export default function ThemeSwitch() {
+  const { theme, toggleTheme } = useTheme();
+
+  return (
+    <button
+      onClick={toggleTheme}
+      className={s.switch}
+      aria-label="Toggle theme"
+    >
+      <div
+        className={`${s.thumb} ${
+          theme === "dark" ? s.thumbDark : ""
+        }`}
+      >
+        {theme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
+      </div>
+    </button>
+  );
+}
+```
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Theme Context" icon="palette">
+    Integrates with Theme context for global theme state management
+  </Card>
+  <Card title="Visual Icons" icon="sun">
+    Uses Lucide icons (Sun/Moon) for clear visual indication
+  </Card>
+  <Card title="Accessible" icon="universal-access">
+    Includes aria-label for screen reader support
+  </Card>
+  <Card title="Animated" icon="wand-magic-sparkles">
+    CSS transitions provide smooth visual feedback
+  </Card>
+</CardGroup>
+
+## Theme Context Integration
+
+The component uses the `useTheme` hook to access theme state and controls:
+
+```tsx
+const { theme, toggleTheme } = useTheme();
+```
+
+<ParamField path="theme" type="'light' | 'dark'">
+  Current theme value. Determines which icon to display and styling to apply.
+</ParamField>
+
+<ParamField path="toggleTheme" type="() => void">
+  Function to toggle between light and dark themes. Called when the button is clicked.
+</ParamField>
+
+## Visual States
+
+The component displays different icons based on the current theme:
+
+<Tabs>
+  <Tab title="Light Theme">
+    ```tsx
+    <Sun size={16} />
+    ```
+    
+    When in light mode, displays a sun icon indicating that clicking will switch to light theme (or showing current light state).
+  </Tab>
+  <Tab title="Dark Theme">
+    ```tsx
+    <Moon size={16} />
+    ```
+    
+    When in dark mode, displays a moon icon indicating dark theme is active.
+  </Tab>
+</Tabs>
+
+## Styling Classes
+
+The component applies conditional CSS classes:
+
+```tsx
+className={`${s.thumb} ${theme === "dark" ? s.thumbDark : ""}`}
+```
+
+### CSS Modules
+
+- **s.switch**: Base button styling
+- **s.thumb**: Inner container for the icon ("thumb" suggests a toggle switch design)
+- **s.thumbDark**: Additional styling applied in dark mode
+
+<Note>
+  The "thumb" terminology suggests the component may be styled as a toggle switch, with the icon container sliding or transitioning between positions.
+</Note>
+
+## Accessibility
+
+### ARIA Label
+
+```tsx
+aria-label="Toggle theme"
+```
+
+Provides a descriptive label for screen readers, ensuring users with assistive technology understand the button's purpose.
+
+### Button Semantics
+
+Using a native `<button>` element ensures:
+- Keyboard accessibility (Space/Enter to activate)
+- Focus management
+- Proper semantic meaning
+
+<Warning>
+  Consider enhancing accessibility further:
+  - Add `aria-pressed` attribute to indicate toggle state
+  - Add `title` attribute for hover tooltip
+  - Consider `aria-live` announcement when theme changes
+</Warning>
+
+## Usage Examples
+
+### Basic Usage
+
+```tsx
+import ThemeSwitch from "@/components/theme/ThemeSwitch";
+import { ThemeProvider } from "@/contexts/Theme.context";
+
+function App() {
+  return (
+    <ThemeProvider>
+      <header>
+        <ThemeSwitch />
+      </header>
+      {/* Rest of your app */}
+    </ThemeProvider>
+  );
+}
+```
+
+### In Navigation Bar
+
+```tsx
+import ThemeSwitch from "@/components/theme/ThemeSwitch";
+
+function NavBar() {
+  return (
+    <nav className="navbar">
+      <div className="nav-brand">My App</div>
+      <div className="nav-actions">
+        <ThemeSwitch />
+      </div>
+    </nav>
+  );
+}
+```
+
+### In Settings Panel
+
+```tsx
+import ThemeSwitch from "@/components/theme/ThemeSwitch";
+
+function SettingsPanel() {
+  return (
+    <div className="settings">
+      <div className="setting-item">
+        <label>Theme</label>
+        <ThemeSwitch />
+      </div>
+      {/* Other settings */}
+    </div>
+  );
+}
+```
+
+### With Custom Wrapper
+
+```tsx
+import ThemeSwitch from "@/components/theme/ThemeSwitch";
+import { useTheme } from "@/contexts/Theme.context";
+
+function ThemedToolbar() {
+  const { theme } = useTheme();
+  
+  return (
+    <div className={`toolbar toolbar-${theme}`}>
+      <h3>Appearance</h3>
+      <p>Current theme: {theme}</p>
+      <ThemeSwitch />
+    </div>
+  );
+}
+```
+
+## Icon Sizing
+
+The component uses icons with a fixed size:
+
+```tsx
+<Moon size={16} />
+<Sun size={16} />
+```
+
+The 16px size is appropriate for:
+- Button/toolbar contexts
+- Maintaining visual consistency
+- Ensuring clarity without overwhelming the interface
+
+<Note>
+  If you need different sizes, consider creating a variant of ThemeSwitch or accepting a size prop:
+  
+  ```tsx
+  type ThemeSwitchProps = {
+    iconSize?: number;
+  };
+  ```
+</Note>
+
+## Theme Context Requirements
+
+The component expects the Theme context to provide:
+
+```tsx
+type ThemeContextType = {
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
+};
+```
+
+### Typical Theme Context Implementation
+
+```tsx
+import { createContext, useContext, useState, useEffect } from "react";
+
+const ThemeContext = createContext<ThemeContextType>(undefined!);
+
+export function ThemeProvider({ children }) {
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  
+  useEffect(() => {
+    // Load saved theme from localStorage
+    const saved = localStorage.getItem('theme');
+    if (saved === 'light' || saved === 'dark') {
+      setTheme(saved);
+    }
+  }, []);
+  
+  useEffect(() => {
+    // Apply theme to document
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+  
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+  
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+export const useTheme = () => useContext(ThemeContext);
+```
+
+## Icon Library
+
+The component uses [Lucide React](https://lucide.dev/) for icons:
+
+```tsx
+import { Sun, Moon } from "lucide-react";
+```
+
+**Benefits of Lucide:**
+- Lightweight and tree-shakeable
+- Consistent design language
+- Easy to customize (size, color, stroke width)
+- Excellent React integration
+
+## Styling Recommendations
+
+While the component uses CSS modules, here's a suggested styling approach:
+
+```scss
+// ThemeSwitch.module.scss
+.switch {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: var(--hover-bg);
+  }
+  
+  &:focus-visible {
+    outline: 2px solid var(--focus-color);
+    outline-offset: 2px;
+  }
+}
+
+.thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--sun-bg);
+  color: var(--sun-color);
+  transition: all 0.3s ease;
+}
+
+.thumbDark {
+  background: var(--moon-bg);
+  color: var(--moon-color);
+}
+```
+
+## Performance Considerations
+
+1. **Context Updates**: Theme changes trigger re-renders of all consuming components
+2. **Icon Bundle**: Only imported icons are included in the bundle (tree-shaking)
+3. **CSS Transitions**: Smooth animations without JavaScript overhead
+
+## Testing Considerations
+
+```tsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import ThemeSwitch from './ThemeSwitch';
+import { ThemeProvider } from '@/contexts/Theme.context';
+
+test('toggles theme when clicked', () => {
+  const { container } = render(
+    <ThemeProvider>
+      <ThemeSwitch />
+    </ThemeProvider>
+  );
+  
+  const button = screen.getByLabelText('Toggle theme');
+  
+  // Initial state (light)
+  expect(container.querySelector('svg')).toHaveClass('lucide-sun');
+  
+  // Click to toggle
+  fireEvent.click(button);
+  
+  // Should show moon (dark mode)
+  expect(container.querySelector('svg')).toHaveClass('lucide-moon');
+});
+```
+
+## Usage Locations
+
+ThemeSwitch can be integrated into navigation bars, settings panels, or any component where theme toggling is desired.
+
+## Related Contexts
+
+- **ThemeContext**: Provides theme state and toggle function
+
+## Enhancement Ideas
+
+<CardGroup cols={2}>
+  <Card title="Three Themes" icon="palette">
+    Support light, dark, and system preference modes
+  </Card>
+  <Card title="Keyboard Shortcut" icon="keyboard">
+    Add global keyboard shortcut (e.g., Ctrl+Shift+T)
+  </Card>
+  <Card title="Tooltip" icon="comment">
+    Show current theme on hover
+  </Card>
+  <Card title="Animation" icon="sparkles">
+    Add icon rotation or transition animation
+  </Card>
+</CardGroup>
+
+## Source Location
+
+`components/theme/ThemeSwitch.tsx:1`

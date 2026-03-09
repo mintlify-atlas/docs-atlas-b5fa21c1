@@ -1,0 +1,145 @@
+---
+title: "OrderStatus"
+description: "Type definition for order status values in the KDS system"
+---
+
+## Overview
+
+The `OrderStatus` type represents all possible states an order can be in throughout its lifecycle in the Kitchen Display System. This is a union type that ensures type safety when working with order statuses.
+
+## Type Definition
+
+```typescript
+export type OrderStatus =
+  | "RECEIVED"
+  | "CONFIRMED"
+  | "PREPARING"
+  | "READY"
+  | "PICKED_UP"
+  | "DELIVERED"
+  | "CANCELLED";
+```
+
+## Status Values
+
+<ParamField path="RECEIVED" type="string">
+  Initial status when an order is first received by the system. The order has been placed but not yet acknowledged by kitchen staff.
+</ParamField>
+
+<ParamField path="CONFIRMED" type="string">
+  The order has been acknowledged and accepted by kitchen staff. Ready to begin preparation.
+</ParamField>
+
+<ParamField path="PREPARING" type="string">
+  The order is currently being prepared in the kitchen. Active cooking/assembly is in progress.
+</ParamField>
+
+<ParamField path="READY" type="string">
+  The order has been completed and is ready for pickup or delivery. Waiting for customer or driver.
+</ParamField>
+
+<ParamField path="PICKED_UP" type="string">
+  The order has been picked up by the customer or delivery driver. In transit to final destination.
+</ParamField>
+
+<ParamField path="DELIVERED" type="string">
+  The order has been successfully delivered to the customer. Final state for successful orders.
+</ParamField>
+
+<ParamField path="CANCELLED" type="string">
+  The order has been cancelled. Final state for cancelled orders. Can occur at any point before pickup.
+</ParamField>
+
+## Constants
+
+### ALL_ORDER_STATUSES
+
+An array containing all valid order status values. Useful for validation, iteration, and generating UI elements.
+
+```typescript
+export const ALL_ORDER_STATUSES: OrderStatus[] = [
+  "RECEIVED",
+  "CONFIRMED",
+  "PREPARING",
+  "READY",
+  "PICKED_UP",
+  "DELIVERED",
+  "CANCELLED",
+];
+```
+
+## Usage Examples
+
+<CodeGroup>
+
+```typescript Basic Usage
+import { OrderStatus } from "@/domain/order/order-status";
+
+function updateOrderStatus(orderId: string, status: OrderStatus) {
+  // Type-safe status updates
+  console.log(`Order ${orderId} is now ${status}`);
+}
+
+updateOrderStatus("123", "PREPARING"); // Valid
+updateOrderStatus("123", "INVALID"); // TypeScript error
+```
+
+```typescript Validation
+import { ALL_ORDER_STATUSES, OrderStatus } from "@/domain/order/order-status";
+
+function isValidStatus(status: string): status is OrderStatus {
+  return ALL_ORDER_STATUSES.includes(status as OrderStatus);
+}
+
+const userInput = "READY";
+if (isValidStatus(userInput)) {
+  // userInput is now typed as OrderStatus
+  console.log(`Valid status: ${userInput}`);
+}
+```
+
+```typescript React Component
+import { ALL_ORDER_STATUSES, OrderStatus } from "@/domain/order/order-status";
+
+function OrderStatusSelect() {
+  const [status, setStatus] = useState<OrderStatus>("RECEIVED");
+  
+  return (
+    <select 
+      value={status} 
+      onChange={(e) => setStatus(e.target.value as OrderStatus)}
+    >
+      {ALL_ORDER_STATUSES.map((status) => (
+        <option key={status} value={status}>
+          {status}
+        </option>
+      ))}
+    </select>
+  );
+}
+```
+
+</CodeGroup>
+
+## Status Flow
+
+<Note>
+  For information about valid transitions between statuses, see the [Order Transitions](/api/domain/order-transitions) documentation.
+</Note>
+
+The typical order flow follows this sequence:
+
+1. **RECEIVED** - Order arrives in the system
+2. **CONFIRMED** - Kitchen acknowledges the order
+3. **PREPARING** - Kitchen begins preparation
+4. **READY** - Order is completed
+5. **PICKED_UP** - Order is collected
+6. **DELIVERED** - Order reaches customer
+
+At any point before **PICKED_UP**, an order may transition to **CANCELLED**. Once an order reaches **DELIVERED** or **CANCELLED**, it is in a terminal state.
+
+## Source Location
+
+```
+~/workspace/source/domain/order/order-status.ts
+```

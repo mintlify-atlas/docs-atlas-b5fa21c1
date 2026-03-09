@@ -1,0 +1,92 @@
+---
+title: "OrderListDto"
+description: "Data transfer object for order list items displayed in the KDS order queue"
+---
+
+## Overview
+
+The `OrderListDto` represents a condensed view of an order optimized for list displays in the Kitchen Display System. It contains essential information needed to display orders in the queue, including status, priority, and basic identification details.
+
+## Type Definition
+
+```typescript
+import { OrderStatus } from "@/domain/order/order-status";
+
+export type OrderPriority = "NORMAL" | "HIGH";
+
+export type OrderListDto = {
+  id: string;
+  partnerName?: string;
+  partnerImage?: string;
+  displayNumber: string;
+  status: OrderStatus;
+  priority: OrderPriority;
+  activeTimer?: string;
+  courierName?: string;
+};
+```
+
+## Fields
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the order
+</ResponseField>
+
+<ResponseField name="partnerName" type="string">
+  Name of the restaurant or merchant partner associated with this order
+</ResponseField>
+
+<ResponseField name="partnerImage" type="string">
+  URL or path to the partner's logo/image for display purposes
+</ResponseField>
+
+<ResponseField name="displayNumber" type="string" required>
+  Human-readable order number shown to kitchen staff (e.g., "#1234")
+</ResponseField>
+
+<ResponseField name="status" type="OrderStatus" required>
+  Current status of the order in the fulfillment workflow
+  
+  <Expandable title="OrderStatus values">
+    - `RECEIVED` - Order has been received by the system
+    - `CONFIRMED` - Order has been confirmed and accepted
+    - `PREPARING` - Order is being prepared by kitchen staff
+    - `READY` - Order is ready for pickup
+    - `PICKED_UP` - Order has been picked up by courier
+    - `DELIVERED` - Order has been delivered to customer
+    - `CANCELLED` - Order has been cancelled
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="priority" type="OrderPriority" required>
+  Priority level of the order affecting display and sorting
+  
+  - `NORMAL` - Standard priority order
+  - `HIGH` - High priority order requiring immediate attention
+</ResponseField>
+
+<ResponseField name="activeTimer" type="string">
+  ISO 8601 duration string or timestamp representing active timer for the order (e.g., time since received or time until ready)
+</ResponseField>
+
+<ResponseField name="courierName" type="string">
+  Name of the delivery courier assigned to this order
+</ResponseField>
+
+## Usage
+
+This DTO is typically used in:
+
+- Order queue list views
+- Real-time order status displays
+- Dashboard overview screens
+- Order filtering and sorting operations
+
+## Related Types
+
+- [OrderDetailDto](/api/dtos/order-details) - Full order details with customer information and items
+- [RiderDto](/api/dtos/rider) - Courier/rider information
+
+## Source
+
+`dtos/OrderList.dto.ts`

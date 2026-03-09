@@ -1,0 +1,413 @@
+---
+title: "Project Structure"
+description: "Understanding the KDS Frontend architecture and directory organization"
+---
+
+## Architecture Overview
+
+KDS Frontend uses a **layered architecture** inspired by Clean Architecture and Domain-Driven Design principles. The codebase is organized to ensure clear separation of concerns, testability, and maintainability.
+
+<Note>
+  The architecture enforces that **UI components never directly access infrastructure**. All communication flows through well-defined layers.
+</Note>
+
+## Directory Structure
+
+Here's the complete directory tree:
+
+```
+kds-frontend/
+├── application/        # Use cases and contracts
+├── bases/             # Base/primitive UI components
+├── components/        # Feature components
+├── contexts/          # React Context providers
+├── domain/            # Business logic and rules
+├── dtos/              # Data transfer objects
+├── helpers/           # Utility functions
+├── infraestructure/   # External integrations
+├── layouts/           # Page layouts
+├── orchestrators/     # Coordination layer
+├── pages/             # Next.js pages
+├── public/            # Static assets
+├── services/          # Service instances
+├── styles/            # Global styles and variables
+├── biome.json         # Linting configuration
+├── next.config.mjs    # Next.js configuration
+├── package.json       # Dependencies
+└── tsconfig.json      # TypeScript configuration
+```
+
+## Layer-by-Layer Breakdown
+
+### Domain Layer
+
+**Location:** `domain/`
+
+Contains pure business logic with **no external dependencies**. This layer defines the core rules and entities of the application.
+
+<CodeGroup>
+```typescript domain/order/order-status.ts
+export type OrderStatus =
+  | "RECEIVED"
+  | "CONFIRMED"
+  | "PREPARING"
+  | "READY"
+  | "PICKED_UP"
+  | "DELIVERED"
+  | "CANCELLED";
+
+export const ALL_ORDER_STATUSES: OrderStatus[] = [
+  "RECEIVED",
+  "CONFIRMED",
+  "PREPARING",
+  "READY",
+  "PICKED_UP",
+  "DELIVERED",
+  "CANCELLED",
+];
+```
+
+```typescript domain/order/order-transitions.ts
+// Defines which status transitions are valid
+export function canTransition(
+  from: OrderStatus,
+  to: OrderStatus
+): boolean {
+  // Business rules for valid state transitions
+  // e.g., can't go from DELIVERED back to PREPARING
+}
+```
+</CodeGroup>
+
+<Accordion title="Domain layer principles">
+  - No framework dependencies
+  - Pure TypeScript/JavaScript
+  - Contains business invariants
+  - Defines valid state transitions
+  - Reusable across different UIs
+</Accordion>
+
+### Application Layer
+
+**Location:** `application/`
+
+Defines **contracts and use cases**. This layer acts as a bridge between the domain and infrastructure.
+
+**Structure:**
+```
+application/
+├── hook/
+│   └── use-order-detail.ts    # Hooks for data fetching
+├── order/
+│   ├── order-events.ts        # Event type definitions
+│   ├── order-realtime.ts      # Real-time contract
+│   └── order-repository.ts    # Repository interface
+└── shared/
+    └── realtime.ts            # Base real-time interface
+```
+
+<CodeGroup>
+```typescript order-repository.ts
+export interface OrderRepository {
+  getAll(): Promise<OrderListDto[]>;
+  getById(id: string): Promise<OrderDetailDto>;
+  updateStatus(id: string, status: OrderStatus): Promise<void>;
+}
+```
+
+```typescript order-realtime.ts
+export interface OrderRealtime {
+  connect(): void;
+  disconnect(): void;
+  onOrderCreated(callback: (order: OrderListDto) => void): void;
+  onOrderStatusUpdated(callback: (event: StatusUpdatedEvent) => void): void;
+}
+```
+</CodeGroup>
+
+<Note>
+  The application layer defines **what** the app needs, not **how** it's implemented. This enables easy testing with mocks.
+</Note>
+
+### Infrastructure Layer
+
+**Location:** `infraestructure/`
+
+Implements the contracts defined in the application layer using **real external services**.
+
+**Structure:**
+```
+infraestructure/
+├── http/
+│   ├── axios.instance.ts      # Configured Axios client
+│   └── order.repository.ts    # HTTP implementation
+└── socket/
+    └── order.realtime.ts      # WebSocket implementation
+```
+
+<Accordion title="Why separate infrastructure?">
+  - Easy to swap implementations (e.g., REST → GraphQL)
+  - Testable with mocks
+  - Keeps external dependencies isolated
+  - Can run without a real backend in tests
+</Accordion>
+
+### Components Layer
+
+**Location:** `components/`
+
+Contains **feature-specific** React components. These are composed of base components and implement application features.
+
+**Structure:**
+```
+components/
+├── Column/
+│   ├── Column.tsx
+│   └── Column.module.scss
+├── Kanban/
+│   ├── Kanban.tsx
+│   └── Kanban.module.scss
+├── Riders/
+│   ├── Riders.tsx
+│   └── Riders.module.scss
+├── card/
+│   ├── OrderCard.tsx
+│   └── OrderCard.module.scss
+├── modal/
+│   ├── OrderDetailsModal.tsx
+│   └── OrderDetailsModal.module.scss
+├── order/
+│   └── OrderItems/
+└── theme/
+    └── ThemeToggle.tsx
+```
+
+<Note>
+  Each component has its own SCSS module for scoped styling. See the [Styling Guide](/development/styling) for more details.
+</Note>
+
+### Bases Layer
+
+**Location:** `bases/`
+
+Contains **primitive/reusable** UI components with no business logic.
+
+**Structure:**
+```
+bases/
+├── Logo/
+├── Rider/
+├── card/
+│   └── Card.tsx           # Generic card component
+└── modal/
+    └── Modal.tsx          # Generic modal component
+```
+
+These are **pure presentational components** that can be reused across features.
+
+### Contexts Layer
+
+**Location:** `contexts/`
+
+Manages **global application state** using React Context.
+
+<CodeGroup>
+```typescript Orders.context.tsx
+// Global state for all orders
+export function OrdersProvider({ children }) {
+  const [orders, setOrders] = useState<Map<string, OrderListDto>>(new Map());
+  // Derived state using useMemo
+  const ordersByStatus = useMemo(() => groupByStatus(orders), [orders]);
+  // ...
+}
+```
+
+```typescript Theme.context.tsx
+// Global theme state (light/dark mode)
+export function ThemeProvider({ children }) {
+  const [theme, setTheme] = useState<Theme>("light");
+  // Persists to localStorage and applies to <html> class
+  // ...
+}
+```
+</CodeGroup>
+
+<Accordion title="Design decision: Derived state">
+  Riders and grouped orders are **derived** from the main orders state using `useMemo`, rather than stored separately. This prevents state duplication and synchronization issues.
+</Accordion>
+
+### Orchestrators Layer
+
+**Location:** `orchestrators/`
+
+Coordinates between **repository** and **real-time** implementations. Acts as a facade for complex operations.
+
+```typescript orchestrators/order/order.orchestrator.ts
+export class OrderOrchestrator {
+  constructor(
+    private repository: OrderRepository,
+    private realtime: OrderRealtime
+  ) {}
+
+  async initialize() {
+    // 1. Load initial data via HTTP
+    const orders = await this.repository.getAll();
+    // 2. Connect to WebSocket for updates
+    this.realtime.connect();
+    // 3. Set up event listeners
+    this.setupListeners();
+  }
+}
+```
+
+<Note>
+  Orchestrators simplify complex workflows by coordinating multiple services. The UI only needs to call the orchestrator.
+</Note>
+
+### DTOs (Data Transfer Objects)
+
+**Location:** `dtos/`
+
+Defines **explicit contracts** for data flowing between layers.
+
+```typescript OrderList.dto.ts
+export interface OrderListDto {
+  id: string;
+  displayNumber: string;
+  status: OrderStatus;
+  partnerName: string;
+  partnerImage?: string;
+  priority: "NORMAL" | "HIGH";
+  activeTimer?: string;
+}
+```
+
+<Accordion title="Why use DTOs?">
+  - Clear API contracts
+  - Type safety across boundaries
+  - Decouples internal domain from external APIs
+  - Makes refactoring safer
+</Accordion>
+
+### Pages Layer
+
+**Location:** `pages/`
+
+Next.js **file-based routing**. Each file becomes a route.
+
+```
+pages/
+├── _app.tsx          # App wrapper with providers
+├── _document.tsx     # HTML document structure
+└── index.tsx         # Home page (Kanban board)
+```
+
+<CodeGroup>
+```typescript _app.tsx
+export default function App({ Component, pageProps }: AppProps) {
+  return (
+    <ThemeProvider>
+      <OrdersProvider>
+        <Component {...pageProps} />
+      </OrdersProvider>
+    </ThemeProvider>
+  );
+}
+```
+</CodeGroup>
+
+### Helpers and Services
+
+**Helpers** (`helpers/`): Pure utility functions (e.g., date formatting, string manipulation)
+
+**Services** (`services/`): Singleton instances of orchestrators and repositories
+
+## Data Flow
+
+Here's how data flows through the architecture:
+
+<Steps>
+  <Step title="User action">
+    User drags an order card to a new column
+  </Step>
+
+  <Step title="UI component">
+    `Kanban.tsx` handles the drop event
+  </Step>
+
+  <Step title="Domain validation">
+    Check if transition is valid using `canTransition(from, to)`
+  </Step>
+
+  <Step title="Orchestrator">
+    Call `orderOrchestrator.updateStatus(orderId, newStatus)`
+  </Step>
+
+  <Step title="Repository">
+    HTTP request sent via `orderRepository.updateStatus()`
+  </Step>
+
+  <Step title="Real-time update">
+    WebSocket receives `order.status.updated` event
+  </Step>
+
+  <Step title="Context update">
+    `OrdersContext` updates the global state
+  </Step>
+
+  <Step title="UI re-renders">
+    All components subscribed to the order automatically update
+  </Step>
+</Steps>
+
+## Key Design Principles
+
+<CardGroup cols={2}>
+  <Card title="Separation of Concerns" icon="layer-group">
+    Each layer has a single, well-defined responsibility
+  </Card>
+  <Card title="Dependency Inversion" icon="arrow-down-up-across-line">
+    High-level modules don't depend on low-level implementation details
+  </Card>
+  <Card title="Type Safety" icon="shield-check">
+    Strict TypeScript with `exactOptionalPropertyTypes` enabled
+  </Card>
+  <Card title="Testability" icon="flask-vial">
+    Interfaces allow easy mocking and testing
+  </Card>
+</CardGroup>
+
+## Optimization Strategies
+
+<Accordion title="Order lookup performance">
+  Orders are stored in a `Map<string, OrderListDto>` for **O(1)** lookup time instead of array iteration.
+</Accordion>
+
+<Accordion title="Derived state with useMemo">
+  Grouping orders by status is computed once and memoized:
+  ```typescript
+  const ordersByStatus = useMemo(
+    () => groupOrdersByStatus(orders),
+    [orders]
+  );
+  ```
+</Accordion>
+
+<Accordion title="Component memoization">
+  Heavy components are wrapped with `React.memo()` to prevent unnecessary re-renders.
+</Accordion>
+
+<Accordion title="Lazy loading">
+  Images use `loading="lazy"` attribute for performance.
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Setup Guide" icon="rocket" href="/development/setup">
+    Learn how to install and run the project
+  </Card>
+  <Card title="Styling Guide" icon="palette" href="/development/styling">
+    Understand the SCSS modules and theming system
+  </Card>
+</CardGroup>

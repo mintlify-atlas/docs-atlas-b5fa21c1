@@ -1,0 +1,324 @@
+---
+title: 'Application Hooks'
+description: 'React hooks for order management in the application layer'
+---
+
+## Overview
+
+The application layer provides React hooks that encapsulate order-related business logic and state management. These hooks provide a clean interface for components to interact with order data.
+
+**Source**: `application/hook/use-order-detail.ts`
+
+## useOrderDetail
+
+A React hook that fetches and manages the state of a single order's detailed information.
+
+### Signature
+
+```typescript
+function useOrderDetail(orderId: string | null): {
+  detail: OrderDetailDto | null;
+  isLoading: boolean;
+  error: string | null;
+}
+```
+
+### Parameters
+
+<ParamField path="orderId" type="string | null" required>
+  The unique identifier of the order to fetch. Pass `null` to skip fetching.
+</ParamField>
+
+### Returns
+
+<ResponseField name="detail" type="OrderDetailDto | null">
+  The order detail data, or `null` if not yet loaded or if `orderId` is `null`
+</ResponseField>
+
+<ResponseField name="isLoading" type="boolean">
+  `true` while the order details are being fetched, `false` otherwise
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  Error message if the fetch failed, or `null` if no error occurred
+</ResponseField>
+
+### OrderDetailDto Structure
+
+<ResponseField name="customerName" type="string">
+  Name of the customer who placed the order
+</ResponseField>
+
+<ResponseField name="customerPhone" type="string">
+  Phone number of the customer
+</ResponseField>
+
+<ResponseField name="deliveryAddress" type="string">
+  Delivery address for the order
+</ResponseField>
+
+<ResponseField name="notes" type="string">
+  Special instructions or notes for the order
+</ResponseField>
+
+<ResponseField name="courierName" type="string">
+  Name of the assigned courier
+</ResponseField>
+
+<ResponseField name="items" type="array" required>
+  Array of order items
+  
+  <ResponseField name="id" type="string" required>
+    Unique identifier for the item
+  </ResponseField>
+  
+  <ResponseField name="name" type="string" required>
+    Name of the item
+  </ResponseField>
+  
+  <ResponseField name="image" type="string" required>
+    URL to the item image
+  </ResponseField>
+  
+  <ResponseField name="price" type="number" required>
+    Price of a single unit
+  </ResponseField>
+  
+  <ResponseField name="currency" type="string" required>
+    Currency code (e.g., USD, EUR)
+  </ResponseField>
+  
+  <ResponseField name="qty" type="number" required>
+    Quantity ordered
+  </ResponseField>
+</ResponseField>
+
+## Usage Examples
+
+### Basic Usage
+
+```typescript
+import { useOrderDetail } from '@/application/hook/use-order-detail';
+
+function OrderDetailPanel({ orderId }: { orderId: string }) {
+  const { detail, isLoading, error } = useOrderDetail(orderId);
+  
+  if (isLoading) {
+    return <div>Loading order details...</div>;
+  }
+  
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+  
+  if (!detail) {
+    return <div>No order found</div>;
+  }
+  
+  return (
+    <div>
+      <h2>Order Details</h2>
+      <p>Customer: {detail.customerName}</p>
+      <p>Phone: {detail.customerPhone}</p>
+      <p>Address: {detail.deliveryAddress}</p>
+      {detail.notes && <p>Notes: {detail.notes}</p>}
+      
+      <h3>Items</h3>
+      <ul>
+        {detail.items.map(item => (
+          <li key={item.id}>
+            {item.name} - {item.qty} x {item.currency} {item.price}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+### Conditional Fetching
+
+```typescript
+function OrderSidebar({ selectedOrderId }: { selectedOrderId: string | null }) {
+  // Only fetches when selectedOrderId is not null
+  const { detail, isLoading, error } = useOrderDetail(selectedOrderId);
+  
+  if (!selectedOrderId) {
+    return <div>Select an order to view details</div>;
+  }
+  
+  return (
+    <div>
+      {isLoading && <Spinner />}
+      {error && <Alert type="error">{error}</Alert>}
+      {detail && <OrderDetails data={detail} />}
+    </div>
+  );
+}
+```
+
+### With Loading States
+
+```typescript
+function OrderInfo({ orderId }: { orderId: string }) {
+  const { detail, isLoading, error } = useOrderDetail(orderId);
+  
+  return (
+    <Card>
+      {isLoading ? (
+        <SkeletonLoader />
+      ) : error ? (
+        <ErrorMessage message={error} />
+      ) : detail ? (
+        <>
+          <CustomerInfo
+            name={detail.customerName}
+            phone={detail.customerPhone}
+            address={detail.deliveryAddress}
+          />
+          <OrderItems items={detail.items} />
+          {detail.courierName && (
+            <CourierInfo name={detail.courierName} />
+          )}
+        </>
+      ) : null}
+    </Card>
+  );
+}
+```
+
+### Displaying Total Price
+
+```typescript
+function OrderSummary({ orderId }: { orderId: string }) {
+  const { detail, isLoading, error } = useOrderDetail(orderId);
+  
+  const totalPrice = detail?.items.reduce(
+    (sum, item) => sum + (item.price * item.qty),
+    0
+  );
+  
+  const currency = detail?.items[0]?.currency;
+  
+  if (isLoading) return <div>Calculating...</div>;
+  if (error) return <div>Error loading order</div>;
+  
+  return (
+    <div>
+      <h3>Order Total</h3>
+      <p>{currency} {totalPrice?.toFixed(2)}</p>
+    </div>
+  );
+}
+```
+
+## Behavior Details
+
+<Note>
+  The hook implements automatic cleanup to prevent state updates on unmounted components. This prevents React warnings about memory leaks.
+</Note>
+
+### Automatic Refetch
+
+The hook automatically refetches order details when the `orderId` parameter changes:
+
+```typescript
+function OrderViewer() {
+  const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
+  
+  // Automatically refetches when currentOrderId changes
+  const { detail, isLoading } = useOrderDetail(currentOrderId);
+  
+  return (
+    <div>
+      <OrderSelector onSelect={setCurrentOrderId} />
+      {detail && <OrderDetails data={detail} />}
+    </div>
+  );
+}
+```
+
+### Skipping Fetch
+
+Passing `null` as the `orderId` skips the fetch entirely:
+
+```typescript
+// No fetch occurs
+const { detail } = useOrderDetail(null);
+// detail will be null
+```
+
+### Error Handling
+
+The hook catches errors during fetch and provides them via the `error` field:
+
+```typescript
+const { error } = useOrderDetail('invalid-id');
+
+if (error) {
+  // error will contain the error message
+  console.error('Failed to load order:', error);
+}
+```
+
+## Implementation Notes
+
+### Dependencies
+
+The hook depends on:
+- `orderOrchestrator.getOrderDetail()` from `@/services/order.service`
+- React's `useState` and `useEffect` hooks
+
+### State Management
+
+The hook manages three pieces of state:
+1. **detail**: The fetched order data
+2. **isLoading**: Loading indicator
+3. **error**: Error message if fetch fails
+
+### Cleanup
+
+The hook implements proper cleanup using a cancellation flag:
+
+```typescript
+useEffect(() => {
+  let cancelled = false;
+  
+  // Fetch logic...
+  
+  return () => {
+    cancelled = true; // Prevents state updates after unmount
+  };
+}, [orderId]);
+```
+
+<Note>
+  This cleanup mechanism ensures that if the component unmounts or the `orderId` changes before the fetch completes, no state updates occur. This prevents "Can't perform a React state update on an unmounted component" warnings.
+</Note>
+
+## Type Safety
+
+```typescript
+// TypeScript infers the correct types
+const { detail, isLoading, error } = useOrderDetail('order-123');
+
+// detail is OrderDetailDto | null
+if (detail) {
+  // TypeScript knows detail is OrderDetailDto here
+  console.log(detail.customerName); // ✓ Type-safe
+  console.log(detail.invalidField);  // ✗ TypeScript error
+}
+
+// isLoading is boolean
+if (isLoading) { /* ... */ }
+
+// error is string | null
+if (error) {
+  console.log(error.toUpperCase()); // ✓ Type-safe
+}
+```
+
+## Related
+
+- [OrderRepository](/api/application/order-repository) - Repository interface for order data
+- [OrderRealtime](/api/application/order-realtime) - Real-time order updates

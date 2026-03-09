@@ -1,0 +1,415 @@
+---
+title: 'Architecture'
+description: 'Understand the layered architecture of the KDS Frontend application'
+icon: 'layer-group'
+---
+
+The KDS Frontend follows a **clean architecture** pattern with clear separation of concerns across four distinct layers. This architecture ensures maintainability, testability, and scalability of the codebase.
+
+## Layered Architecture
+
+The application is organized into the following layers:
+
+<CardGroup cols={2}>
+  <Card title="Domain Layer" icon="gem">
+    Core business logic and rules
+  </Card>
+  <Card title="Application Layer" icon="layer-group">
+    Application services and interfaces
+  </Card>
+  <Card title="Infrastructure Layer" icon="server">
+    External integrations (HTTP, WebSocket)
+  </Card>
+  <Card title="Presentation Layer" icon="browser">
+    UI components and contexts
+  </Card>
+</CardGroup>
+
+## Directory Structure
+
+```
+source/
+├── domain/                    # Domain Layer
+│   └── order/
+│       ├── order-status.ts
+│       └── order-transitions.ts
+├── application/               # Application Layer
+│   ├── order/
+│   │   ├── order-repository.ts
+│   │   ├── order-realtime.ts
+│   │   └── order-events.ts
+│   ├── hook/
+│   │   └── use-order-detail.ts
+│   └── shared/
+│       └── http-client.ts
+├── infraestructure/          # Infrastructure Layer
+│   ├── http/
+│   │   ├── order.repository.ts
+│   │   └── axios-http.client.ts
+│   └── socket/
+│       └── order-realtime.socket.ts
+├── orchestrators/            # Orchestration Layer
+│   └── order/
+│       └── OrderOrchestrator.ts
+├── components/               # Presentation Layer
+│   ├── Kanban/
+│   ├── Column/
+│   └── card/
+├── contexts/                 # State Management
+│   └── Orders.context.tsx
+├── dtos/                     # Data Transfer Objects
+│   ├── OrderList.dto.ts
+│   └── OrderDetails.dto.ts
+└── pages/                    # Next.js Pages
+```
+
+## Layer Details
+
+<Tabs>
+  <Tab title="Domain Layer">
+    ### Domain Layer
+
+    The **domain layer** contains pure business logic with no external dependencies. It defines the core rules and types of the application.
+
+    **Location:** `domain/`
+
+    **Key Responsibilities:**
+    - Define domain types (e.g., `OrderStatus`)
+    - Implement business rules (e.g., `canTransition`)
+    - No dependencies on other layers
+
+    **Example:** Order Status Transitions
+
+    ```typescript domain/order/order-transitions.ts
+    import { OrderStatus } from "./order-status";
+
+    const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+      RECEIVED: ["CONFIRMED", "CANCELLED"],
+      CONFIRMED: ["PREPARING", "CANCELLED"],
+      PREPARING: ["READY", "CANCELLED"],
+      READY: ["PICKED_UP", "CANCELLED"],
+      PICKED_UP: ["DELIVERED"],
+      DELIVERED: [],
+      CANCELLED: [],
+    };
+
+    export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
+      return ALLOWED_TRANSITIONS[from].includes(to);
+    }
+    ```
+
+    The domain layer ensures business rules are enforced consistently across the entire application.
+  </Tab>
+
+  <Tab title="Application Layer">
+    ### Application Layer
+
+    The **application layer** defines interfaces and contracts for the application's services. It acts as a bridge between the domain and infrastructure layers.
+
+    **Location:** `application/`
+
+    **Key Responsibilities:**
+    - Define repository interfaces
+    - Define service interfaces (e.g., real-time sync)
+    - Define event contracts
+    - Custom React hooks for data fetching
+
+    **Example:** Repository Interface
+
+    ```typescript application/order/order-repository.ts
+    import { OrderStatus } from "@/domain/order/order-status";
+    import { OrderDetailDto } from "@/dtos/OrderDetails.dto";
+    import { OrderListDto } from "@/dtos/OrderList.dto";
+
+    export interface OrderRepository {
+      listBoard(): Promise<OrderListDto[]>;
+      updateStatus(id: string, toStatus: OrderStatus): Promise<void>;
+      getDetail(id: string): Promise<OrderDetailDto>;
+    }
+    ```
+
+    **Example:** Real-time Interface
+
+    ```typescript application/order/order-realtime.ts
+    import { OrderEvents } from "./order-events";
+
+    export interface OrderRealtime {
+      connect(events: OrderEvents): void;
+      disconnect(): void;
+    }
+    ```
+
+    <Note>
+      The application layer defines **what** the application can do, while the infrastructure layer defines **how** it does it.
+    </Note>
+  </Tab>
+
+  <Tab title="Infrastructure Layer">
+    ### Infrastructure Layer
+
+    The **infrastructure layer** implements the interfaces defined in the application layer using specific technologies (HTTP, WebSocket, etc.).
+
+    **Location:** `infraestructure/`
+
+    **Key Responsibilities:**
+    - Implement repository interfaces with HTTP clients
+    - Implement real-time sync with WebSocket
+    - Handle external API communication
+    - Transform API responses into DTOs
+
+    **Example:** HTTP Repository Implementation
+
+    ```typescript infraestructure/http/order.repository.ts
+    export class HttpOrderRepository implements OrderRepository {
+      constructor(private readonly http: HttpClient) {}
+
+      async listBoard(): Promise<OrderListDto[]> {
+        const { createdFrom, createdTo } = this.getTodayRange();
+
+        const response = await this.http.get<OrdersListResponse>(
+          "/api/v1/orders/list",
+          {
+            params: {
+              status: ALL_ORDER_STATUSES.join(","),
+              createdFrom,
+              createdTo,
+            },
+          },
+        );
+
+        return response.data.orders;
+      }
+
+      async updateStatus(id: string, toStatus: OrderStatus): Promise<void> {
+        await this.http.patch<UpdateStatusResponse>(
+          `/api/v1/orders/${id}/status`,
+          { toStatus }
+        );
+      }
+    }
+    ```
+
+    **Example:** WebSocket Implementation
+
+    ```typescript infraestructure/socket/order-realtime.socket.ts
+    export class SocketOrderRealtime implements OrderRealtime {
+      private socket: Socket | null = null;
+
+      constructor(private readonly baseUrl: string) {}
+
+      connect(events: OrderEvents): void {
+        if (!this.socket) {
+          this.socket = io(this.baseUrl, {
+            transports: ["websocket"],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 2000,
+          });
+        }
+
+        this.socket.on("order.created", (order: OrderListDto) => {
+          events.onCreated?.(order);
+        });
+
+        this.socket.on("order.status.updated", (order: OrderListDto) => {
+          events.onUpdated?.(order);
+        });
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Orchestration Layer">
+    ### Orchestration Layer
+
+    The **orchestration layer** coordinates between the repository and real-time services, providing a unified API for the presentation layer.
+
+    **Location:** `orchestrators/`
+
+    **Key Responsibilities:**
+    - Coordinate repository and real-time services
+    - Provide a single entry point for order operations
+    - Delegate to appropriate services
+
+    **Example:** Order Orchestrator
+
+    ```typescript orchestrators/order/OrderOrchestrator.ts
+    export class OrderOrchestrator {
+      constructor(
+        private readonly repository: OrderRepository,
+        private readonly realtime: OrderRealtime,
+      ) {}
+
+      connect(events: OrderEvents): void {
+        this.realtime.connect(events);
+      }
+
+      disconnect(): void {
+        this.realtime.disconnect();
+      }
+
+      async listBoard(): Promise<OrderListDto[]> {
+        return this.repository.listBoard();
+      }
+
+      async getOrderDetail(id: string): Promise<OrderDetailDto> {
+        return this.repository.getDetail(id);
+      }
+
+      async updateOrderState(id: string, toStatus: OrderStatus): Promise<void> {
+        await this.repository.updateStatus(id, toStatus);
+      }
+    }
+    ```
+
+    <Note>
+      The orchestrator simplifies the presentation layer by providing a single API that handles both HTTP requests and real-time updates.
+    </Note>
+  </Tab>
+
+  <Tab title="Presentation Layer">
+    ### Presentation Layer
+
+    The **presentation layer** contains UI components, React contexts, and pages that users interact with.
+
+    **Location:** `components/`, `contexts/`, `pages/`
+
+    **Key Responsibilities:**
+    - Render UI components
+    - Manage local UI state
+    - Handle user interactions
+    - Subscribe to real-time updates
+
+    **Example:** Orders Context
+
+    ```typescript contexts/Orders.context.tsx
+    export const OrdersProvider = ({ children }: { children: React.ReactNode }) => {
+      const [orders, setOrders] = useState<OrderListDto[]>([]);
+
+      const upsert = (incoming: OrderListDto) => {
+        setOrders((prev) => {
+          const idx = prev.findIndex((o) => o.id === incoming.id);
+          if (idx === -1) return [incoming, ...prev];
+
+          const next = [...prev];
+          next[idx] = incoming;
+          return next;
+        });
+      };
+
+      useEffect(() => {
+        const loadInitial = async () => {
+          const initial = await orderOrchestrator.listBoard();
+          setOrders(initial);
+        };
+
+        loadInitial();
+
+        orderOrchestrator.connect({
+          onCreated: upsert,
+          onUpdated: upsert,
+        });
+
+        return () => {
+          orderOrchestrator.disconnect();
+        };
+      }, []);
+
+      const updateOrderStatus = async (id: string, status: OrderStatus) => {
+        // Optimistic update
+        setOrders((curr) => curr.map((o) => (o.id === id ? { ...o, status } : o)));
+
+        try {
+          await orderOrchestrator.updateOrderState(id, status);
+        } catch (e) {
+          // Rollback on error
+        }
+      };
+
+      return (
+        <OrdersContext.Provider value={{ orders, updateOrderStatus }}>
+          {children}
+        </OrdersContext.Provider>
+      );
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Data Flow
+
+<Steps>
+  <Step title="User Interaction">
+    User drags an order card to a new column in the Kanban board
+  </Step>
+  
+  <Step title="Domain Validation">
+    The `canTransition` function validates if the status change is allowed
+    
+    ```typescript
+    if (!canTransition(current.status, targetStatus)) return;
+    ```
+  </Step>
+  
+  <Step title="Orchestrator Coordination">
+    The context calls the orchestrator to update the order status
+    
+    ```typescript
+    await orderOrchestrator.updateOrderState(id, status);
+    ```
+  </Step>
+  
+  <Step title="Infrastructure Execution">
+    The HTTP repository sends a PATCH request to the backend API
+    
+    ```typescript
+    await this.http.patch(`/api/v1/orders/${id}/status`, { toStatus });
+    ```
+  </Step>
+  
+  <Step title="Real-time Broadcast">
+    The backend broadcasts the update via WebSocket to all connected clients
+  </Step>
+  
+  <Step title="UI Update">
+    The socket handler triggers the `onUpdated` event, and the context updates the UI
+    
+    ```typescript
+    this.socket.on("order.status.updated", (order: OrderListDto) => {
+      events.onUpdated?.(order);
+    });
+    ```
+  </Step>
+</Steps>
+
+## Benefits of This Architecture
+
+<CardGroup cols={2}>
+  <Card title="Testability" icon="flask">
+    Each layer can be tested in isolation with mocked dependencies
+  </Card>
+  
+  <Card title="Maintainability" icon="wrench">
+    Clear separation makes it easy to locate and modify code
+  </Card>
+  
+  <Card title="Flexibility" icon="shuffle">
+    Swap implementations (e.g., replace HTTP with GraphQL) without changing business logic
+  </Card>
+  
+  <Card title="Scalability" icon="chart-line">
+    Add new features by following established patterns
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Order Status" icon="arrows-turn-right" href="/concepts/order-status">
+    Learn about order status types and transition rules
+  </Card>
+  
+  <Card title="Real-time Sync" icon="tower-broadcast" href="/concepts/realtime-sync">
+    Understand how WebSocket synchronization works
+  </Card>
+</CardGroup>

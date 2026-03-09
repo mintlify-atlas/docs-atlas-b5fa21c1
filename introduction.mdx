@@ -1,0 +1,113 @@
+---
+title: Introduction
+description: A modern Kitchen Display System built with Next.js for real-time order management
+---
+
+# Welcome to KDS Frontend
+
+KDS Frontend is a modern Kitchen Display System (KDS) built with Next.js, designed to streamline order management in restaurant kitchens through an intuitive, real-time Kanban interface.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running in minutes with our quick start guide
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/concepts/architecture">
+    Learn about the clean layered architecture
+  </Card>
+  <Card title="Components" icon="puzzle-piece" href="/components/kanban">
+    Explore the component library
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/domain/order-status">
+    Dive into the API documentation
+  </Card>
+</CardGroup>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Real-time Sync" icon="arrows-rotate">
+    Order synchronization via WebSockets ensures all displays stay up-to-date instantly
+  </Card>
+  <Card title="Drag & Drop" icon="hand-pointer">
+    Intuitive Kanban board with drag-and-drop for seamless order status management
+  </Card>
+  <Card title="Clean Architecture" icon="layer-group">
+    Domain-driven design with clear separation of concerns across layers
+  </Card>
+  <Card title="Theme Support" icon="palette">
+    Light and dark modes with smooth transitions
+  </Card>
+  <Card title="Validated Transitions" icon="shield-check">
+    Business rules enforce valid order status transitions
+  </Card>
+  <Card title="Responsive Design" icon="mobile">
+    Works seamlessly across desktop and mobile devices
+  </Card>
+</CardGroup>
+
+## Order Status Flow
+
+The KDS manages orders through seven distinct states:
+
+<Steps>
+  <Step title="RECEIVED">
+    Order arrives in the system from the ordering platform
+  </Step>
+  <Step title="CONFIRMED">
+    Kitchen acknowledges and accepts the order
+  </Step>
+  <Step title="PREPARING">
+    Order is actively being prepared by kitchen staff
+  </Step>
+  <Step title="READY">
+    Order is complete and ready for pickup
+  </Step>
+  <Step title="PICKED_UP">
+    Courier has collected the order for delivery
+  </Step>
+  <Step title="DELIVERED">
+    Order successfully delivered to customer
+  </Step>
+  <Step title="CANCELLED">
+    Order cancelled at any stage
+  </Step>
+</Steps>
+
+## Technology Stack
+
+- **Next.js 14** - React framework with App Router
+- **TypeScript** - Type-safe development
+- **SCSS Modules** - Scoped component styling
+- **@dnd-kit** - Drag-and-drop functionality
+- **Socket.io** - Real-time WebSocket communication
+- **Axios** - HTTP client for API requests
+
+## Architecture Principles
+
+The application follows clean architecture principles with clear boundaries:
+
+- **Domain Layer** - Pure business logic and rules
+- **Application Layer** - Use cases and interfaces
+- **Infrastructure Layer** - External integrations (HTTP, WebSocket)
+- **Presentation Layer** - React components and UI
+
+<Note>
+All business rules are encapsulated in the domain layer, ensuring consistency and testability across the application.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Set Up Your Environment" icon="terminal" href="/development/setup">
+    Install dependencies and configure your development environment
+  </Card>
+  <Card title="Understand the Architecture" icon="diagram-project" href="/concepts/architecture">
+    Learn how the layers work together
+  </Card>
+  <Card title="Explore Components" icon="cubes" href="/components/kanban">
+    See how to use the UI components
+  </Card>
+  <Card title="View API Reference" icon="book" href="/api/domain/order-status">
+    Browse the complete API documentation
+  </Card>
+</CardGroup>

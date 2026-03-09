@@ -1,0 +1,752 @@
+---
+title: 'Real-time Synchronization'
+description: 'Learn how the KDS Frontend uses WebSocket for real-time order updates'
+icon: 'tower-broadcast'
+---
+
+The KDS Frontend maintains real-time synchronization across all connected clients using WebSocket technology. When an order is created or updated, all kitchen displays receive the change instantly without requiring manual refresh.
+
+## Overview
+
+Real-time synchronization ensures that:
+
+- **New orders** appear on all kitchen displays immediately
+- **Status changes** are reflected across all devices in real-time
+- **Multiple users** can work simultaneously without conflicts
+- **Kitchen staff** always see the current state of all orders
+
+<Note>
+  The real-time system uses Socket.IO for WebSocket communication, providing automatic reconnection and fallback support.
+</Note>
+
+## Architecture
+
+The real-time synchronization system follows the layered architecture pattern:
+
+<Steps>
+  <Step title="Application Interface">
+    Define the contract for real-time services
+    
+    ```typescript application/order/order-realtime.ts
+    export interface OrderRealtime {
+      connect(events: OrderEvents): void;
+      disconnect(): void;
+    }
+    ```
+  </Step>
+
+  <Step title="Event Types">
+    Define event callbacks for order changes
+    
+    ```typescript application/order/order-events.ts
+    export type OrderEvents = {
+      onCreated?: (order: OrderListDto) => void;
+      onUpdated?: (order: OrderListDto) => void;
+    };
+    ```
+  </Step>
+
+  <Step title="Infrastructure Implementation">
+    Implement the interface using Socket.IO
+    
+    ```typescript infraestructure/socket/order-realtime.socket.ts
+    export class SocketOrderRealtime implements OrderRealtime {
+      private socket: Socket | null = null;
+
+      constructor(private readonly baseUrl: string) {}
+
+      connect(events: OrderEvents): void {
+        // Socket.IO implementation
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Orchestrator Coordination">
+    Coordinate real-time and repository services
+    
+    ```typescript orchestrators/order/OrderOrchestrator.ts
+    export class OrderOrchestrator {
+      constructor(
+        private readonly repository: OrderRepository,
+        private readonly realtime: OrderRealtime,
+      ) {}
+
+      connect(events: OrderEvents): void {
+        this.realtime.connect(events);
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+## WebSocket Connection
+
+### Connection Initialization
+
+The Socket.IO connection is established with automatic reconnection support:
+
+```typescript infraestructure/socket/order-realtime.socket.ts
+export class SocketOrderRealtime implements OrderRealtime {
+  private socket: Socket | null = null;
+
+  constructor(private readonly baseUrl: string) {}
+
+  connect(events: OrderEvents): void {
+    if (!this.socket) {
+      this.socket = io(this.baseUrl, {
+        transports: ["websocket"],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+      });
+    }
+
+    // Remove existing listeners to prevent duplicates
+    this.socket.off("order.created");
+    this.socket.off("order.status.updated");
+
+    // Register event handlers
+    this.socket.on("order.created", (order: OrderListDto) => {
+      events.onCreated?.(order);
+    });
+
+    this.socket.on("order.status.updated", (order: OrderListDto) => {
+      events.onUpdated?.(order);
+    });
+  }
+
+  disconnect(): void {
+    this.socket?.disconnect();
+    this.socket = null;
+  }
+}
+```
+
+### Connection Configuration
+
+<Accordion title="transports: ['websocket']">
+  Forces the use of WebSocket protocol only (no HTTP long-polling fallback).
+
+  **Benefits:**
+  - Lower latency
+  - More efficient
+  - Better for real-time updates
+
+  **Trade-off:**
+  - May not work in restrictive network environments
+</Accordion>
+
+<Accordion title="reconnection: true">
+  Enables automatic reconnection if the connection is lost.
+
+  **Behavior:**
+  - Automatically attempts to reconnect on connection loss
+  - Useful for handling temporary network issues
+  - Maintains user experience during brief disconnections
+</Accordion>
+
+<Accordion title="reconnectionAttempts: 5">
+  Maximum number of reconnection attempts before giving up.
+
+  **Strategy:**
+  - Tries to reconnect up to 5 times
+  - After 5 failed attempts, stops trying
+  - Prevents infinite reconnection loops
+</Accordion>
+
+<Accordion title="reconnectionDelay: 2000">
+  Delay in milliseconds between reconnection attempts.
+
+  **Timing:**
+  - Waits 2 seconds before each reconnection attempt
+  - Prevents overwhelming the server with rapid reconnection requests
+  - Allows time for network or server issues to resolve
+</Accordion>
+
+## Real-time Events
+
+The system listens for two types of events from the backend:
+
+<Tabs>
+  <Tab title="order.created">
+    ### order.created Event
+
+    Triggered when a new order is received by the system.
+
+    **Event Name:** `order.created`
+
+    **Payload:** `OrderListDto`
+
+    ```typescript
+    {
+      id: string;
+      partnerName?: string;
+      partnerImage?: string;
+      displayNumber: string;
+      status: OrderStatus;
+      priority: OrderPriority;
+      activeTimer?: string;
+      courierName?: string;
+    }
+    ```
+
+    **Handler Implementation:**
+
+    ```typescript
+    this.socket.on("order.created", (order: OrderListDto) => {
+      events.onCreated?.(order);
+    });
+    ```
+
+    **Use Cases:**
+    - New order arrives from the ordering system
+    - Order should appear in the "RECEIVED" column
+    - All connected kitchen displays should show the new order
+    - Sound notification can be triggered for new orders
+
+    **Example:**
+
+    ```typescript
+    orderOrchestrator.connect({
+      onCreated: (order) => {
+        console.log(`New order received: ${order.displayNumber}`);
+        // Add order to the list
+        setOrders((prev) => [order, ...prev]);
+        // Play notification sound
+        playNotificationSound();
+      },
+    });
+    ```
+  </Tab>
+
+  <Tab title="order.status.updated">
+    ### order.status.updated Event
+
+    Triggered when an order's status changes (e.g., from PREPARING to READY).
+
+    **Event Name:** `order.status.updated`
+
+    **Payload:** `OrderListDto` (complete order object with updated status)
+
+    ```typescript
+    {
+      id: string;
+      partnerName?: string;
+      partnerImage?: string;
+      displayNumber: string;
+      status: OrderStatus; // Updated status
+      priority: OrderPriority;
+      activeTimer?: string;
+      courierName?: string;
+    }
+    ```
+
+    **Handler Implementation:**
+
+    ```typescript
+    this.socket.on("order.status.updated", (order: OrderListDto) => {
+      events.onUpdated?.(order);
+    });
+    ```
+
+    **Use Cases:**
+    - Kitchen staff moves an order to a different status
+    - Order status changes on another device
+    - Backend system automatically updates order status
+    - All displays need to reflect the new status
+
+    **Example:**
+
+    ```typescript
+    orderOrchestrator.connect({
+      onUpdated: (order) => {
+        console.log(`Order ${order.displayNumber} updated to ${order.status}`);
+        // Update the order in the list
+        setOrders((prev) => {
+          const idx = prev.findIndex((o) => o.id === order.id);
+          if (idx === -1) return prev;
+          
+          const next = [...prev];
+          next[idx] = order;
+          return next;
+        });
+      },
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## Integration with React Context
+
+The real-time system integrates seamlessly with the Orders context to manage application state:
+
+```typescript contexts/Orders.context.tsx
+export const OrdersProvider = ({ children }: { children: React.ReactNode }) => {
+  const [orders, setOrders] = useState<OrderListDto[]>([]);
+
+  // Upsert function handles both create and update events
+  const upsert = (incoming: OrderListDto) => {
+    setOrders((prev) => {
+      const idx = prev.findIndex((o) => o.id === incoming.id);
+      
+      // If order doesn't exist, add it to the beginning
+      if (idx === -1) return [incoming, ...prev];
+
+      // If order exists, update it in place
+      const next = [...prev];
+      next[idx] = incoming;
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Load initial data from API
+    const loadInitial = async () => {
+      try {
+        const initial = await orderOrchestrator.listBoard();
+        if (cancelled) return;
+        setOrders(initial);
+      } catch (e: any) {
+        if (cancelled) return;
+        console.error("Error loading orders:", e);
+      }
+    };
+
+    loadInitial();
+
+    // Connect to real-time updates
+    orderOrchestrator.connect({
+      onCreated: upsert,
+      onUpdated: upsert,
+    });
+
+    // Cleanup on unmount
+    return () => {
+      cancelled = true;
+      orderOrchestrator.disconnect();
+    };
+  }, []);
+
+  return (
+    <OrdersContext.Provider value={{ orders }}>
+      {children}
+    </OrdersContext.Provider>
+  );
+};
+```
+
+### Upsert Pattern
+
+The context uses an "upsert" pattern to handle both create and update events efficiently:
+
+<Steps>
+  <Step title="Search for Existing Order">
+    Check if the order already exists in the state
+    
+    ```typescript
+    const idx = prev.findIndex((o) => o.id === incoming.id);
+    ```
+  </Step>
+
+  <Step title="Add New Order">
+    If the order doesn't exist (idx === -1), add it to the beginning
+    
+    ```typescript
+    if (idx === -1) return [incoming, ...prev];
+    ```
+  </Step>
+
+  <Step title="Update Existing Order">
+    If the order exists, replace it with the updated version
+    
+    ```typescript
+    const next = [...prev];
+    next[idx] = incoming;
+    return next;
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  The upsert pattern ensures the UI stays synchronized regardless of whether an event is a creation or an update.
+</Note>
+
+## Orchestrator Coordination
+
+The `OrderOrchestrator` provides a unified interface that coordinates both HTTP and WebSocket operations:
+
+```typescript orchestrators/order/OrderOrchestrator.ts
+export class OrderOrchestrator {
+  constructor(
+    private readonly repository: OrderRepository,
+    private readonly realtime: OrderRealtime,
+  ) {}
+
+  // Real-time operations
+  connect(events: OrderEvents): void {
+    this.realtime.connect(events);
+  }
+
+  disconnect(): void {
+    this.realtime.disconnect();
+  }
+
+  // HTTP operations
+  async listBoard(): Promise<OrderListDto[]> {
+    return this.repository.listBoard();
+  }
+
+  async updateOrderState(id: string, toStatus: OrderStatus): Promise<void> {
+    await this.repository.updateStatus(id, toStatus);
+  }
+
+  async getOrderDetail(id: string): Promise<OrderDetailDto> {
+    return this.repository.getDetail(id);
+  }
+}
+```
+
+### Why Use an Orchestrator?
+
+<CardGroup cols={2}>
+  <Card title="Single Entry Point" icon="door-open">
+    Components interact with one service instead of multiple
+  </Card>
+
+  <Card title="Simplified Testing" icon="flask">
+    Mock the orchestrator to test components in isolation
+  </Card>
+
+  <Card title="Coordinated Operations" icon="handshake">
+    Manage both HTTP and WebSocket operations together
+  </Card>
+
+  <Card title="Clear Separation" icon="layer-group">
+    Keep presentation logic separate from infrastructure
+  </Card>
+</CardGroup>
+
+## Connection Lifecycle
+
+<Steps>
+  <Step title="Component Mount">
+    Orders context mounts and initializes
+  </Step>
+
+  <Step title="Load Initial Data">
+    Fetch current orders via HTTP API
+    
+    ```typescript
+    const initial = await orderOrchestrator.listBoard();
+    setOrders(initial);
+    ```
+  </Step>
+
+  <Step title="Establish WebSocket">
+    Connect to real-time server with event handlers
+    
+    ```typescript
+    orderOrchestrator.connect({
+      onCreated: upsert,
+      onUpdated: upsert,
+    });
+    ```
+  </Step>
+
+  <Step title="Receive Updates">
+    Listen for real-time events and update state
+    
+    ```typescript
+    // Server broadcasts "order.created" or "order.status.updated"
+    // → Socket handler receives event
+    // → Calls onCreated or onUpdated callback
+    // → Context updates state
+    // → UI re-renders
+    ```
+  </Step>
+
+  <Step title="Component Unmount">
+    Cleanup: disconnect from WebSocket
+    
+    ```typescript
+    return () => {
+      orderOrchestrator.disconnect();
+    };
+    ```
+  </Step>
+</Steps>
+
+## Optimistic Updates
+
+The application implements optimistic updates for better user experience:
+
+```typescript contexts/Orders.context.tsx
+const updateOrderStatus = async (id: string, status: OrderStatus) => {
+  let previous: OrderListDto | undefined;
+
+  // 1. Save current state for rollback
+  setOrders((curr) => {
+    previous = curr.find((o) => o.id === id);
+    return curr.map((o) => (o.id === id ? { ...o, status } : o));
+  });
+
+  try {
+    // 2. Send update to server
+    await orderOrchestrator.updateOrderState(id, status);
+    
+    // 3. Server broadcasts update via WebSocket
+    // 4. Socket handler updates state (confirms optimistic update)
+  } catch (e) {
+    // 5. Rollback on error
+    if (!previous) return;
+    setOrders((curr) => curr.map((o) => (o.id === id ? previous! : o)));
+  }
+};
+```
+
+### Optimistic Update Flow
+
+<Tabs>
+  <Tab title="Success Case">
+    **Happy Path: Update Succeeds**
+
+    1. User drags order to new status
+    2. UI updates immediately (optimistic)
+    3. HTTP request sent to server
+    4. Server updates database
+    5. Server broadcasts WebSocket event
+    6. All clients receive update (including originator)
+    7. State is confirmed and remains unchanged
+
+    **Result:** Instant UI feedback with eventual consistency
+  </Tab>
+
+  <Tab title="Failure Case">
+    **Error Case: Update Fails**
+
+    1. User drags order to new status
+    2. UI updates immediately (optimistic)
+    3. HTTP request sent to server
+    4. Server rejects request (validation error, network issue, etc.)
+    5. Error is caught in try-catch block
+    6. UI rolls back to previous state
+    7. User sees error message
+
+    **Result:** UI is reverted to correct state
+  </Tab>
+
+  <Tab title="Concurrent Updates">
+    **Edge Case: Multiple Simultaneous Updates**
+
+    1. User A drags order to PREPARING
+    2. User B (on another device) drags same order to CANCELLED
+    3. Both UIs update optimistically
+    4. Server processes requests (typically first-come-first-served)
+    5. Server broadcasts the accepted update
+    6. Both clients receive WebSocket event
+    7. Both UIs converge to the correct state
+
+    **Result:** Eventual consistency across all clients
+  </Tab>
+</Tabs>
+
+## Error Handling
+
+The real-time system handles various error scenarios:
+
+<AccordionGroup>
+  <Accordion title="Connection Failure">
+    **Scenario:** Initial WebSocket connection fails
+
+    **Handling:**
+    - Socket.IO automatically retries up to 5 times
+    - 2-second delay between attempts
+    - If all attempts fail, app continues with HTTP-only mode
+    - User can manually refresh to retry connection
+
+    ```typescript
+    constructor(private readonly baseUrl: string) {
+      // Connection config handles retries
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Connection Drop">
+    **Scenario:** Active connection is lost (network issue, server restart)
+
+    **Handling:**
+    - Socket.IO automatically attempts to reconnect
+    - Reconnection attempts: 5 times with 2-second delays
+    - During reconnection, app continues to function with local state
+    - Once reconnected, server can resync state if needed
+
+    ```typescript
+    this.socket = io(this.baseUrl, {
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Duplicate Events">
+    **Scenario:** Same event received multiple times
+
+    **Handling:**
+    - The upsert pattern is idempotent
+    - Receiving the same order multiple times has no negative effect
+    - Order is simply updated to the same state
+
+    ```typescript
+    const upsert = (incoming: OrderListDto) => {
+      setOrders((prev) => {
+        const idx = prev.findIndex((o) => o.id === incoming.id);
+        if (idx === -1) return [incoming, ...prev];
+        
+        const next = [...prev];
+        next[idx] = incoming; // Safe to update multiple times
+        return next;
+      });
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="Out-of-Order Events">
+    **Scenario:** Events arrive in wrong order due to network latency
+
+    **Handling:**
+    - Each event contains the full order object (not just changes)
+    - Last event received becomes the source of truth
+    - May cause brief inconsistency, but quickly converges to correct state
+
+    <Warning>
+      For critical applications, implement event versioning or timestamps to handle out-of-order events more robustly.
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<Steps>
+  <Step title="Always Clean Up">
+    Disconnect from WebSocket when component unmounts to prevent memory leaks
+    
+    ```typescript
+    useEffect(() => {
+      orderOrchestrator.connect({ onCreated: upsert, onUpdated: upsert });
+      
+      return () => {
+        orderOrchestrator.disconnect(); // Important!
+      };
+    }, []);
+    ```
+  </Step>
+
+  <Step title="Remove Duplicate Listeners">
+    Clear existing listeners before adding new ones
+    
+    ```typescript
+    this.socket.off("order.created");
+    this.socket.off("order.status.updated");
+    
+    this.socket.on("order.created", handler);
+    this.socket.on("order.status.updated", handler);
+    ```
+  </Step>
+
+  <Step title="Handle Null/Undefined">
+    Check if socket exists before calling methods
+    
+    ```typescript
+    disconnect(): void {
+      this.socket?.disconnect(); // Safe navigation
+      this.socket = null;
+    }
+    ```
+  </Step>
+
+  <Step title="Use Idempotent Operations">
+    Design event handlers to be safely called multiple times
+    
+    ```typescript
+    // Good: Upsert is idempotent
+    const upsert = (order) => {
+      setOrders(prev => {
+        const idx = prev.findIndex(o => o.id === order.id);
+        return idx === -1 ? [...prev, order] : prev.map((o, i) => i === idx ? order : o);
+      });
+    };
+    
+    // Bad: Append without checking for duplicates
+    const append = (order) => {
+      setOrders(prev => [...prev, order]); // Can create duplicates!
+    };
+    ```
+  </Step>
+</Steps>
+
+## Testing Real-time Features
+
+Mock the OrderRealtime interface for testing:
+
+```typescript
+// Mock implementation for tests
+class MockOrderRealtime implements OrderRealtime {
+  private events: OrderEvents = {};
+
+  connect(events: OrderEvents): void {
+    this.events = events;
+  }
+
+  disconnect(): void {
+    this.events = {};
+  }
+
+  // Test helper: simulate receiving an event
+  simulateOrderCreated(order: OrderListDto): void {
+    this.events.onCreated?.(order);
+  }
+
+  simulateOrderUpdated(order: OrderListDto): void {
+    this.events.onUpdated?.(order);
+  }
+}
+
+// Usage in tests
+const mockRealtime = new MockOrderRealtime();
+const orchestrator = new OrderOrchestrator(mockRepository, mockRealtime);
+
+orchestrator.connect({
+  onCreated: (order) => {
+    // Assert order was received
+    expect(order.id).toBe("123");
+  },
+});
+
+// Simulate event
+mockRealtime.simulateOrderCreated({
+  id: "123",
+  displayNumber: "001",
+  status: "RECEIVED",
+  // ...
+});
+```
+
+## Related Concepts
+
+<CardGroup cols={3}>
+  <Card title="Architecture" icon="layer-group" href="/concepts/architecture">
+    Learn about the layered architecture
+  </Card>
+  
+  <Card title="Order Status" icon="arrows-turn-right" href="/concepts/order-status">
+    Understand order status transitions
+  </Card>
+  
+  <Card title="Application Hooks" icon="react" href="/api/application/hooks">
+    API reference for application hooks
+  </Card>
+</CardGroup>

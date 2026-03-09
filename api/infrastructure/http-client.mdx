@@ -1,0 +1,281 @@
+---
+title: 'HTTP Client'
+description: 'Axios-based HTTP client implementation for API communication'
+---
+
+## Overview
+
+The `AxiosHttpClient` class provides a type-safe HTTP client implementation using Axios. It implements the `HttpClient` interface and handles all HTTP communication with the backend API, including error handling, request configuration, and response transformation.
+
+## HttpClient Interface
+
+The core interface that defines the contract for HTTP operations:
+
+```typescript
+export interface HttpClient {
+  get<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T>;
+  post<T = unknown>(
+    url: string,
+    body?: unknown,
+    config?: AxiosRequestConfig
+  ): Promise<T>;
+  put<T = unknown>(
+    url: string,
+    body?: unknown,
+    config?: AxiosRequestConfig
+  ): Promise<T>;
+  patch<T = unknown>(
+    url: string,
+    body?: unknown,
+    config?: AxiosRequestConfig
+  ): Promise<T>;
+  delete<T = unknown>(
+    url: string,
+    config?: AxiosRequestConfig
+  ): Promise<T>;
+}
+```
+
+## AxiosHttpClient Class
+
+### Location
+
+`infraestructure/http/axios-http.client.ts`
+
+### Constructor
+
+```typescript
+constructor(baseURL?: string)
+```
+
+<ParamField path="baseURL" type="string" optional>
+  The base URL for all API requests. Defaults to `NEXT_PUBLIC_API_URL` environment variable or `http://localhost:3004`
+</ParamField>
+
+### Configuration
+
+The client is configured with the following default settings:
+
+<ResponseField name="baseURL" type="string">
+  Base URL for all requests (configurable via constructor or environment variable)
+</ResponseField>
+
+<ResponseField name="timeout" type="number">
+  Request timeout set to 8000ms (8 seconds)
+</ResponseField>
+
+<ResponseField name="headers" type="object">
+  Default headers including `Content-Type: application/json`
+</ResponseField>
+
+### Interceptors
+
+The client includes a response interceptor that:
+- Returns successful responses unchanged
+- Extracts error data from `error.response.data` for failed requests
+- Provides a fallback "Unexpected HTTP error" message if no error data is available
+
+```typescript
+this.instance.interceptors.response.use(
+  (response: AxiosResponse) => response,
+  (error) =>
+    Promise.reject(
+      error?.response?.data ?? new Error("Unexpected HTTP error"),
+    ),
+);
+```
+
+## Methods
+
+### get()
+
+Performs an HTTP GET request.
+
+```typescript
+async get<T>(url: string, config?: AxiosRequestConfig): Promise<T>
+```
+
+<ParamField path="url" type="string" required>
+  The endpoint URL (relative to baseURL)
+</ParamField>
+
+<ParamField path="config" type="AxiosRequestConfig" optional>
+  Additional Axios configuration options (params, headers, etc.)
+</ParamField>
+
+**Returns:** `Promise<T>` - The response data typed as `T`
+
+### post()
+
+Performs an HTTP POST request.
+
+```typescript
+async post<T>(
+  url: string,
+  body?: unknown,
+  config?: AxiosRequestConfig,
+): Promise<T>
+```
+
+<ParamField path="url" type="string" required>
+  The endpoint URL (relative to baseURL)
+</ParamField>
+
+<ParamField path="body" type="unknown" optional>
+  The request body to send
+</ParamField>
+
+<ParamField path="config" type="AxiosRequestConfig" optional>
+  Additional Axios configuration options
+</ParamField>
+
+**Returns:** `Promise<T>` - The response data typed as `T`
+
+### put()
+
+Performs an HTTP PUT request.
+
+```typescript
+async put<T>(
+  url: string,
+  body?: unknown,
+  config?: AxiosRequestConfig,
+): Promise<T>
+```
+
+<ParamField path="url" type="string" required>
+  The endpoint URL (relative to baseURL)
+</ParamField>
+
+<ParamField path="body" type="unknown" optional>
+  The request body to send
+</ParamField>
+
+<ParamField path="config" type="AxiosRequestConfig" optional>
+  Additional Axios configuration options
+</ParamField>
+
+**Returns:** `Promise<T>` - The response data typed as `T`
+
+### patch()
+
+Performs an HTTP PATCH request.
+
+```typescript
+async patch<T>(
+  url: string,
+  body?: unknown,
+  config?: AxiosRequestConfig,
+): Promise<T>
+```
+
+<ParamField path="url" type="string" required>
+  The endpoint URL (relative to baseURL)
+</ParamField>
+
+<ParamField path="body" type="unknown" optional>
+  The request body to send
+</ParamField>
+
+<ParamField path="config" type="AxiosRequestConfig" optional>
+  Additional Axios configuration options
+</ParamField>
+
+**Returns:** `Promise<T>` - The response data typed as `T`
+
+### delete()
+
+Performs an HTTP DELETE request.
+
+```typescript
+async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T>
+```
+
+<ParamField path="url" type="string" required>
+  The endpoint URL (relative to baseURL)
+</ParamField>
+
+<ParamField path="config" type="AxiosRequestConfig" optional>
+  Additional Axios configuration options
+</ParamField>
+
+**Returns:** `Promise<T>` - The response data typed as `T`
+
+## Usage Example
+
+Here's how the HTTP client is used in the `HttpOrderRepository`:
+
+```typescript
+import { AxiosHttpClient } from '@/infraestructure/http/axios-http.client';
+import { HttpOrderRepository } from '@/infraestructure/http/order.repository';
+
+// Create an HTTP client instance
+const httpClient = new AxiosHttpClient();
+
+// Use it with a repository
+const orderRepository = new HttpOrderRepository(httpClient);
+
+// The repository uses the client for API calls
+class HttpOrderRepository implements OrderRepository {
+  constructor(private readonly http: HttpClient) {}
+
+  async listBoard(): Promise<OrderListDto[]> {
+    const { createdFrom, createdTo } = this.getTodayRange();
+
+    const response = await this.http.get<OrdersListResponse>(
+      "/api/v1/orders/list",
+      {
+        params: {
+          status: ALL_ORDER_STATUSES.join(","),
+          createdFrom,
+          createdTo,
+        },
+      },
+    );
+
+    return response.data.orders;
+  }
+
+  async updateStatus(id: string, toStatus: OrderStatus): Promise<void> {
+    await this.http.patch<UpdateStatusResponse>(
+      `/api/v1/orders/${id}/status`,
+      { toStatus }
+    );
+  }
+
+  async getDetail(id: string): Promise<OrderDetailDto> {
+    const response = await this.http.get<OrderDetailApiResponse>(
+      `/api/v1/order/details/${id}`,
+    );
+    return this.mapToOrderDetail(response.data);
+  }
+}
+```
+
+## Implementation Details
+
+### Error Handling
+
+<Note>
+  The response interceptor automatically extracts error data from failed requests, making it easier to handle API errors consistently throughout the application.
+</Note>
+
+### Type Safety
+
+All methods are generic and accept a type parameter `<T>` for the expected response data type. This provides compile-time type checking and IntelliSense support.
+
+### Configuration Priority
+
+The base URL is resolved in the following order:
+1. Constructor parameter `baseURL`
+2. `NEXT_PUBLIC_API_URL` environment variable
+3. Default fallback: `http://localhost:3004`
+
+<Warning>
+  The timeout is set to 8 seconds. Long-running requests may need special handling or a custom timeout configuration.
+</Warning>
+
+## Related
+
+- [Order Repository](/api/application/order-repository) - Uses this HTTP client
+- [WebSocket Client](/api/infrastructure/socket) - For real-time communication

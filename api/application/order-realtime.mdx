@@ -1,0 +1,252 @@
+---
+title: 'OrderRealtime'
+description: 'Interface for real-time order event subscriptions'
+---
+
+## Overview
+
+The `OrderRealtime` interface provides a contract for establishing and managing real-time connections to receive order updates. It works in conjunction with `OrderEvents` to handle create and update notifications.
+
+**Source**: `application/order/order-realtime.ts`, `application/order/order-events.ts`
+
+## Interface Definitions
+
+### OrderRealtime
+
+```typescript
+interface OrderRealtime {
+  connect(events: OrderEvents): void;
+  disconnect(): void;
+}
+```
+
+### OrderEvents
+
+```typescript
+type OrderEvents = {
+  onCreated?: (order: OrderListDto) => void;
+  onUpdated?: (order: OrderListDto) => void;
+};
+```
+
+## Methods
+
+### connect()
+
+Establishes a real-time connection and registers event handlers for order notifications.
+
+```typescript
+connect(events: OrderEvents): void
+```
+
+#### Parameters
+
+<ParamField path="events" type="OrderEvents" required>
+  An object containing callback functions for order events
+  
+  <ParamField path="events.onCreated" type="function">
+    Optional callback invoked when a new order is created
+    
+    **Signature**: `(order: OrderListDto) => void`
+    
+    **Parameters**:
+    - `order`: The newly created order data
+  </ParamField>
+  
+  <ParamField path="events.onUpdated" type="function">
+    Optional callback invoked when an existing order is updated
+    
+    **Signature**: `(order: OrderListDto) => void`
+    
+    **Parameters**:
+    - `order`: The updated order data
+  </ParamField>
+</ParamField>
+
+#### Returns
+
+<ResponseField name="void" type="void">
+  This method does not return a value
+</ResponseField>
+
+#### Example
+
+```typescript
+const orderRealtime = getOrderRealtimeInstance();
+
+orderRealtime.connect({
+  onCreated: (order) => {
+    console.log('New order received:', order.displayNumber);
+    console.log('Status:', order.status);
+    console.log('Priority:', order.priority);
+  },
+  onUpdated: (order) => {
+    console.log('Order updated:', order.displayNumber);
+    console.log('New status:', order.status);
+  }
+});
+```
+
+<Note>
+  You can register only one of the event handlers if you don't need both. Both `onCreated` and `onUpdated` are optional.
+</Note>
+
+---
+
+### disconnect()
+
+Closes the real-time connection and stops receiving order events.
+
+```typescript
+disconnect(): void
+```
+
+#### Returns
+
+<ResponseField name="void" type="void">
+  This method does not return a value
+</ResponseField>
+
+#### Example
+
+```typescript
+// Clean up when component unmounts
+useEffect(() => {
+  orderRealtime.connect({
+    onCreated: handleNewOrder,
+    onUpdated: handleOrderUpdate
+  });
+  
+  return () => {
+    orderRealtime.disconnect();
+  };
+}, []);
+```
+
+<Note>
+  Always call `disconnect()` when you no longer need real-time updates to prevent memory leaks and unnecessary network traffic.
+</Note>
+
+## OrderListDto Structure
+
+Both event callbacks receive an `OrderListDto` object with the following structure:
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the order
+</ResponseField>
+
+<ResponseField name="partnerName" type="string">
+  Name of the partner/restaurant
+</ResponseField>
+
+<ResponseField name="partnerImage" type="string">
+  URL to the partner's image
+</ResponseField>
+
+<ResponseField name="displayNumber" type="string" required>
+  Human-readable order number for display
+</ResponseField>
+
+<ResponseField name="status" type="OrderStatus" required>
+  Current status of the order (RECEIVED, CONFIRMED, PREPARING, READY, PICKED_UP, DELIVERED, CANCELLED)
+</ResponseField>
+
+<ResponseField name="priority" type="OrderPriority" required>
+  Order priority level (NORMAL or HIGH)
+</ResponseField>
+
+<ResponseField name="activeTimer" type="string">
+  Active timer value for the order
+</ResponseField>
+
+<ResponseField name="courierName" type="string">
+  Name of the assigned courier
+</ResponseField>
+
+## Usage Patterns
+
+### Basic Connection
+
+```typescript
+const realtime = orderRealtimeService;
+
+realtime.connect({
+  onCreated: (order) => {
+    addOrderToBoard(order);
+  },
+  onUpdated: (order) => {
+    updateOrderOnBoard(order);
+  }
+});
+```
+
+### React Hook Integration
+
+```typescript
+function OrderBoard() {
+  const [orders, setOrders] = useState<OrderListDto[]>([]);
+  
+  useEffect(() => {
+    const realtime = getOrderRealtime();
+    
+    realtime.connect({
+      onCreated: (newOrder) => {
+        setOrders(prev => [...prev, newOrder]);
+      },
+      onUpdated: (updatedOrder) => {
+        setOrders(prev => 
+          prev.map(order => 
+            order.id === updatedOrder.id ? updatedOrder : order
+          )
+        );
+      }
+    });
+    
+    return () => realtime.disconnect();
+  }, []);
+  
+  return <div>{/* Render orders */}</div>;
+}
+```
+
+### Handling Only Updates
+
+```typescript
+// Subscribe only to updates, ignore new orders
+orderRealtime.connect({
+  onUpdated: (order) => {
+    console.log(`Order ${order.displayNumber} updated to ${order.status}`);
+  }
+});
+```
+
+## Implementation Notes
+
+<Note>
+  The `OrderRealtime` interface does not specify the underlying transport mechanism (WebSocket, SSE, polling, etc.). The implementation determines the actual real-time technology used.
+</Note>
+
+<Note>
+  Event handlers should be lightweight and non-blocking. For heavy processing, consider using a message queue or worker pattern.
+</Note>
+
+## Error Handling
+
+Implementations should handle connection errors gracefully:
+
+```typescript
+try {
+  orderRealtime.connect({
+    onCreated: handleNewOrder,
+    onUpdated: handleOrderUpdate
+  });
+} catch (error) {
+  console.error('Failed to establish real-time connection:', error);
+  // Implement fallback strategy (polling, retry, etc.)
+}
+```
+
+## Related
+
+- [OrderRepository](/api/application/order-repository) - Order data operations
+- [useOrderDetail Hook](/api/application/hooks) - React hook for order details

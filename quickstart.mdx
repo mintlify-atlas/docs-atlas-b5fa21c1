@@ -1,80 +1,246 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quickstart'
+description: 'Get up and running with KDS Frontend in minutes'
 ---
 
-## Get started in three steps
+## Welcome to KDS Frontend
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+KDS (Krazy Display Service) is a modern Kitchen Display System built with Next.js and TypeScript. This guide will help you set up and run the application quickly.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Before you begin, ensure you have Node.js 18+ installed and either pnpm, npm, or yarn available on your system.
 </Note>
+
+## Installation
+
+<Steps>
+  <Step title="Clone the Repository">
+    First, navigate to your project directory where the KDS Frontend source code is located.
+
+    ```bash
+    cd path/to/kds-frontend
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    Install the project dependencies using your preferred package manager:
+
+    <CodeGroup>
+      ```bash pnpm
+      pnpm install
+      ```
+
+      ```bash npm
+      npm install
+      ```
+
+      ```bash yarn
+      yarn install
+      ```
+    </CodeGroup>
+
+    The project includes the following key dependencies:
+    - **Next.js 14** - React framework for production
+    - **@dnd-kit** - Modern drag-and-drop toolkit
+    - **Socket.io-client** - Real-time WebSocket communication
+    - **Axios** - HTTP client for API requests
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Create a `.env.local` file in the root directory to configure the API connection:
+
+    ```bash .env.local
+    NEXT_PUBLIC_API_URL=http://localhost:3004
+    ```
+
+    <Warning>
+      The `NEXT_PUBLIC_API_URL` variable is required for the application to communicate with the backend API. Make sure your backend server is running on the specified port.
+    </Warning>
+
+    You can also copy the example file:
+
+    ```bash
+    cp .env.example .env.local
+    ```
+  </Step>
+
+  <Step title="Start the Development Server">
+    Run the development server:
+
+    <CodeGroup>
+      ```bash pnpm
+      pnpm dev
+      ```
+
+      ```bash npm
+      npm run dev
+      ```
+
+      ```bash yarn
+      yarn dev
+      ```
+    </CodeGroup>
+
+    The application will start on port 3000.
+  </Step>
+
+  <Step title="Access the Application">
+    Open your browser and navigate to:
+
+    ```
+    http://localhost:3000
+    ```
+
+    You should see the KDS Kanban board interface with order columns.
+  </Step>
+</Steps>
+
+## Quick Usage Example
+
+Once the application is running, you can start managing orders through the Kanban board interface.
+
+### Understanding the Order Flow
+
+The KDS system manages orders through seven status columns:
+
+```typescript
+type OrderStatus =
+  | "RECEIVED"    // New orders from customers
+  | "CONFIRMED"   // Orders confirmed by kitchen
+  | "PREPARING"   // Orders being prepared
+  | "READY"       // Orders ready for pickup
+  | "PICKED_UP"   // Orders picked up by courier
+  | "DELIVERED"   // Orders delivered to customer
+  | "CANCELLED";  // Cancelled orders
+```
+
+### Drag and Drop Orders
+
+The interface supports intuitive drag-and-drop functionality:
+
+1. **View Orders**: Each column displays orders in that status
+2. **Move Orders**: Click and drag an order card to a different column
+3. **View Details**: Click on any order to see detailed information
+4. **Real-time Updates**: Orders automatically sync across all connected clients
+
+```tsx
+// Example: The Kanban component from components/Kanban/Kanban.tsx:29
+import { useOrders } from "@/contexts/Orders.context";
+
+export default function Kanban() {
+  const { ordersByStatus, updateOrderStatus } = useOrders();
+  
+  // Orders are automatically organized by status
+  // and updates are synced in real-time via WebSocket
+}
+```
+
+### Order Transitions
+
+The system enforces business rules for valid order transitions. Not all status changes are allowed:
+
+<Note>
+  Order transitions are validated both in the domain layer (`domain/order/order-transitions.ts`) and at the UI level for optimal user experience.
+</Note>
+
+### Real-time Synchronization
+
+The application maintains real-time synchronization through WebSocket connections:
+
+```tsx
+// Example: Orders context from contexts/Orders.context.tsx:55
+useEffect(() => {
+  // Load initial orders via HTTP
+  const initial = await orderOrchestrator.listBoard();
+  setOrders(initial);
+
+  // Connect WebSocket for real-time updates
+  orderOrchestrator.connect({
+    onCreated: upsert,  // Handle new orders
+    onUpdated: upsert,  // Handle order updates
+  });
+
+  return () => {
+    orderOrchestrator.disconnect();
+  };
+}, []);
+```
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="/concepts/architecture">
+    Learn about the layered architecture and design principles
+  </Card>
+  <Card title="Components" icon="puzzle-piece" href="/components/kanban">
+    Explore the UI components and their usage
+  </Card>
+  <Card title="Order Status" icon="database" href="/concepts/order-status">
+    Understand order statuses and transitions
+  </Card>
+  <Card title="Real-time Sync" icon="plug" href="/concepts/realtime-sync">
+    Connect to backend services and WebSocket events
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+Now that you have the application running, you can:
+
+- **Customize the theme** - Toggle between light and dark modes using the theme switch
+- **Configure order rules** - Modify transition logic in `domain/order/order-transitions.ts`
+- **Extend the UI** - Add new components or customize existing ones
+- **Deploy to production** - Build and deploy using `pnpm build` and `pnpm start`
+
+## Build for Production
+
+When you're ready to deploy:
+
+<CodeGroup>
+  ```bash pnpm
+  pnpm build
+  pnpm start
+  ```
+
+  ```bash npm
+  npm run build
+  npm start
+  ```
+
+  ```bash yarn
+  yarn build
+  yarn start
+  ```
+</CodeGroup>
+
+The production build will be optimized for performance and ready to deploy to your hosting platform of choice.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Application won't start">
+    - Verify Node.js version is 18 or higher: `node --version`
+    - Ensure all dependencies are installed: `pnpm install`
+    - Check if port 3000 is already in use
+  </Accordion>
+
+  <Accordion title="Cannot connect to API">
+    - Verify the backend server is running on the configured port
+    - Check the `NEXT_PUBLIC_API_URL` in your `.env.local` file
+    - Ensure there are no CORS issues between frontend and backend
+  </Accordion>
+
+  <Accordion title="WebSocket not connecting">
+    - Confirm the backend WebSocket server is running
+    - Check browser console for connection errors
+    - Verify the API URL includes the correct protocol (http/https)
+  </Accordion>
+
+  <Accordion title="Orders not updating in real-time">
+    - Check the WebSocket connection status in browser DevTools
+    - Verify the backend is emitting `order.created` and `order.status.updated` events
+    - Review the orchestrator connection in `contexts/Orders.context.tsx:55`
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  If you encounter persistent issues, check the browser console and terminal for error messages. The application includes comprehensive error handling throughout the codebase.
+</Warning>

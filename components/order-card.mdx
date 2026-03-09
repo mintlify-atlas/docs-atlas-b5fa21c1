@@ -1,0 +1,382 @@
+---
+title: OrderCard
+description: Visual card component displaying order information with status-based styling and priority indicators
+---
+
+## Overview
+
+The `OrderCard` component renders an individual order as a visually distinct card within the kanban board. It displays essential order information including partner details, order number, priority level, and active timer, with color-coded styling based on the order's current status.
+
+## Props Interface
+
+```tsx
+type OrderCardProps = {
+  order: OrderListDto;
+  onClick?: () => void;
+  isOverlay?: boolean;
+};
+```
+
+<ParamField path="order" type="OrderListDto" required>
+  The order data object containing all information to display.
+  
+  **OrderListDto Structure:**
+  ```tsx
+  type OrderListDto = {
+    id: string;
+    partnerName?: string;
+    partnerImage?: string;
+    displayNumber: string;
+    status: OrderStatus;
+    priority: OrderPriority; // "NORMAL" | "HIGH"
+    activeTimer?: string;
+    courierName?: string;
+  }
+  ```
+</ParamField>
+
+<ParamField path="onClick" type="() => void">
+  Optional callback function invoked when the card is clicked. Typically used to open order details.
+</ParamField>
+
+<ParamField path="isOverlay" type="boolean" default="false">
+  When `true`, applies special styling for drag overlay rendering. Used during drag-and-drop operations.
+</ParamField>
+
+## Visual Features
+
+<CardGroup cols={2}>
+  <Card title="Status Colors" icon="palette">
+    Each order status has a unique color scheme for instant visual recognition
+  </Card>
+  <Card title="Priority Badge" icon="flag">
+    High-priority orders display a prominent badge
+  </Card>
+  <Card title="Active Timer" icon="clock">
+    Shows how long the order has been in its current status
+  </Card>
+  <Card title="Partner Logo" icon="image">
+    Displays partner branding when available
+  </Card>
+</CardGroup>
+
+## Status-Based Styling
+
+The component applies different CSS classes based on the order status:
+
+```tsx
+const STATUS_CLASS: Record<OrderStatus, string | undefined> = {
+  RECEIVED: s.received,
+  CONFIRMED: s.confirmed,
+  PREPARING: s.preparing,
+  READY: s.ready,
+  PICKED_UP: s.pickedUp,
+  DELIVERED: s.delivered,
+  CANCELLED: s.cancelled,
+};
+```
+
+<Tabs>
+  <Tab title="RECEIVED">
+    Initial status when an order enters the system. Typically styled with a neutral or info color.
+  </Tab>
+  <Tab title="CONFIRMED">
+    Order has been acknowledged by the kitchen. Often uses a blue or confirmation color.
+  </Tab>
+  <Tab title="PREPARING">
+    Active preparation phase. Usually highlighted with warning/active colors.
+  </Tab>
+  <Tab title="READY">
+    Order is ready for pickup. Often green or success-colored.
+  </Tab>
+  <Tab title="PICKED_UP">
+    Order has been collected by a courier. Note: This status renders as a RiderCard in the kanban view.
+  </Tab>
+  <Tab title="DELIVERED">
+    Final successful state. Success/completion styling.
+  </Tab>
+  <Tab title="CANCELLED">
+    Order was cancelled. Error/danger styling.
+  </Tab>
+</Tabs>
+
+## Component Structure
+
+```tsx
+export default function OrderCard({
+  order,
+  onClick,
+  isOverlay = false,
+}: OrderCardProps) {
+  const isHighPriority = order.priority === "HIGH";
+  
+  return (
+    <Card
+      size="md"
+      variant="elevated"
+      className={clsx(
+        s.card,
+        STATUS_CLASS[order.status],
+        isOverlay && s.overlay,
+      )}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+    >
+      {/* Card content */}
+    </Card>
+  );
+}
+```
+
+## Content Layout
+
+### Main Content
+
+The card displays information in a structured layout:
+
+```tsx
+<div className={s.content}>
+  <div className={s.partnerName}>{order.partnerName}</div>
+  
+  <div className={s.orderNumber}>Orden: {order.displayNumber}</div>
+  
+  <span
+    className={clsx(
+      s.priority,
+      isHighPriority ? s.priorityHigh : s.priorityNormal,
+    )}
+  >
+    {isHighPriority ? "Alta" : "Normal"}
+  </span>
+  
+  {order.activeTimer && (
+    <div className={s.time}>
+      <span className={s.clockIcon}>🕒</span>
+      {formatHour(order.activeTimer)}
+    </div>
+  )}
+</div>
+```
+
+#### Partner Name
+Displays the restaurant or partner name at the top of the card.
+
+#### Order Number
+Shows the human-readable order display number prefixed with "Orden:".
+
+#### Priority Badge
+<Tabs>
+  <Tab title="High Priority">
+    ```tsx
+    // Displays "Alta" with high-priority styling
+    className={s.priorityHigh}
+    ```
+    Used for urgent orders that need immediate attention.
+  </Tab>
+  <Tab title="Normal Priority">
+    ```tsx
+    // Displays "Normal" with standard styling
+    className={s.priorityNormal}
+    ```
+    Standard priority for most orders.
+  </Tab>
+</Tabs>
+
+#### Active Timer
+
+Conditionally rendered when an order has an active timer:
+
+```tsx
+{order.activeTimer && (
+  <div className={s.time}>
+    <span className={s.clockIcon}>🕒</span>
+    {formatHour(order.activeTimer)}
+  </div>
+)}
+```
+
+<Note>
+  The timer uses the `formatHour` helper to display elapsed time in a human-readable format (e.g., "12:34").
+</Note>
+
+### Partner Logo
+
+When available, displays the partner's logo:
+
+```tsx
+{order.partnerImage && (
+  <div className={s.logoWrapper}>
+    <img
+      src={order.partnerImage}
+      alt={order.partnerName}
+      loading="lazy"
+    />
+  </div>
+)}
+```
+
+<Note>
+  Images use lazy loading to improve initial page load performance.
+</Note>
+
+## Click Handling
+
+The card implements click event handling with propagation control:
+
+```tsx
+onClick={(e) => {
+  e.stopPropagation();
+  onClick?.();
+}}
+```
+
+**Why `stopPropagation`?**
+
+The event propagation is stopped to prevent triggering parent drag-and-drop handlers when clicking the card. This allows:
+- Clicking to open order details
+- Dragging to move the order
+
+These two interactions to coexist without conflict.
+
+## Priority Logic
+
+```tsx
+const isHighPriority = order.priority === "HIGH";
+```
+
+The component determines priority treatment based on the order's priority field. This affects:
+- Badge text ("Alta" vs "Normal")
+- Badge styling (distinct colors)
+- Visual prominence in the UI
+
+## Usage Examples
+
+### Basic Usage
+
+```tsx
+import OrderCard from "@/components/card/OrderCard";
+
+function OrderList({ orders }) {
+  return (
+    <div>
+      {orders.map((order) => (
+        <OrderCard
+          key={order.id}
+          order={order}
+          onClick={() => console.log('Order clicked:', order.id)}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+### As Drag Overlay
+
+```tsx
+import { DragOverlay } from "@dnd-kit/core";
+import OrderCard from "@/components/card/OrderCard";
+
+function KanbanBoard() {
+  const [activeOrder, setActiveOrder] = useState(null);
+  
+  return (
+    <DragOverlay>
+      {activeOrder && (
+        <OrderCard
+          order={activeOrder}
+          isOverlay={true}
+        />
+      )}
+    </DragOverlay>
+  );
+}
+```
+
+### With Order Details Modal
+
+```tsx
+import OrderCard from "@/components/card/OrderCard";
+import { OrderDetailModal } from "@/components/modal/OrderDetailsModal";
+
+function OrderColumn({ orders }) {
+  const [selectedId, setSelectedId] = useState(null);
+  
+  return (
+    <>
+      {orders.map((order) => (
+        <OrderCard
+          key={order.id}
+          order={order}
+          onClick={() => setSelectedId(order.id)}
+        />
+      ))}
+      
+      {selectedId && (
+        <OrderDetailModal
+          orderId={selectedId}
+          onClose={() => setSelectedId(null)}
+        />
+      )}
+    </>
+  );
+}
+```
+
+## Styling Considerations
+
+The component uses CSS modules for scoped styling:
+
+```tsx
+import s from "./OrderCard.module.scss";
+```
+
+Key style classes:
+- `s.card`: Base card styles
+- `s.content`: Content container layout
+- `s.partnerName`: Partner name typography
+- `s.orderNumber`: Order number display
+- `s.priority`: Priority badge base styles
+- `s.priorityHigh`: High priority badge styling
+- `s.priorityNormal`: Normal priority badge styling
+- `s.time`: Timer display container
+- `s.clockIcon`: Clock emoji styling
+- `s.logoWrapper`: Partner logo container
+- `s.overlay`: Special styling for drag overlay
+
+## Integration Points
+
+### Base Components
+
+- **Card**: Base card component providing elevation and sizing
+- **clsx**: Utility for conditional class composition
+
+### Helpers
+
+- **formatHour**: Formats timer values into human-readable time strings
+
+### Types
+
+- **OrderListDto**: Order data transfer object
+- **OrderStatus**: Enumeration of valid order statuses
+
+## Accessibility
+
+<Note>
+  Consider adding ARIA attributes for improved accessibility:
+  - `role="button"` when onClick is provided
+  - `aria-label` describing the order
+  - `tabIndex={0}` for keyboard navigation
+</Note>
+
+## Related Components
+
+- [Kanban](/components/kanban): Parent kanban board
+- [Riders](/components/riders): Alternative card for picked-up orders
+- Column: Container for order cards (internal component)
+
+## Source Location
+
+`components/card/OrderCard.tsx:1`

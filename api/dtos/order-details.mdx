@@ -1,0 +1,115 @@
+---
+title: "OrderDetailDto"
+description: "Data transfer object for detailed order information including customer data and order items"
+---
+
+## Overview
+
+The `OrderDetailDto` provides comprehensive order details including customer information, delivery address, order items, and special instructions. This DTO is used when displaying the full details of a specific order, as opposed to the condensed `OrderListDto` used in list views.
+
+## Type Definition
+
+```typescript
+export type OrderDetailDto = {
+  customerName?: string;
+  customerPhone?: string;
+  deliveryAddress?: string;
+  notes?: string;
+  courierName?: string;
+
+  items: {
+    id: string;
+    name: string;
+    image: string;
+    price: number;
+    currency: string;
+    qty: number;
+  }[];
+};
+```
+
+## Fields
+
+<ResponseField name="customerName" type="string">
+  Full name of the customer who placed the order
+</ResponseField>
+
+<ResponseField name="customerPhone" type="string">
+  Contact phone number for the customer
+</ResponseField>
+
+<ResponseField name="deliveryAddress" type="string">
+  Full delivery address where the order should be delivered
+</ResponseField>
+
+<ResponseField name="notes" type="string">
+  Special instructions or notes from the customer (e.g., dietary restrictions, delivery instructions)
+</ResponseField>
+
+<ResponseField name="courierName" type="string">
+  Name of the delivery courier assigned to this order
+</ResponseField>
+
+<ResponseField name="items" type="OrderItem[]" required>
+  Array of items included in the order
+  
+  <Expandable title="OrderItem properties">
+    <ResponseField name="id" type="string" required>
+      Unique identifier for the order item
+    </ResponseField>
+    
+    <ResponseField name="name" type="string" required>
+      Name/title of the menu item
+    </ResponseField>
+    
+    <ResponseField name="image" type="string" required>
+      URL or path to the item's image
+    </ResponseField>
+    
+    <ResponseField name="price" type="number" required>
+      Unit price of the item
+    </ResponseField>
+    
+    <ResponseField name="currency" type="string" required>
+      Currency code for the price (e.g., "USD", "EUR")
+    </ResponseField>
+    
+    <ResponseField name="qty" type="number" required>
+      Quantity of this item ordered
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Difference from OrderListDto
+
+`OrderDetailDto` differs from `OrderListDto` in several key ways:
+
+| Feature | OrderListDto | OrderDetailDto |
+|---------|--------------|----------------|
+| **Purpose** | Quick overview in lists | Comprehensive order information |
+| **Customer Info** | ❌ Not included | ✅ Full customer details |
+| **Order Items** | ❌ Not included | ✅ Complete item list with pricing |
+| **Status/Priority** | ✅ Included | ❌ Not included |
+| **Display Number** | ✅ Included | ❌ Not included |
+| **Use Case** | Queue views, dashboards | Detail views, order fulfillment |
+
+`OrderListDto` is optimized for performance in list views where many orders are displayed simultaneously, while `OrderDetailDto` provides the rich information needed when viewing a single order's details.
+
+## Usage
+
+This DTO is typically used in:
+
+- Order detail view screens
+- Order preparation interfaces
+- Customer information displays
+- Order fulfillment workflows
+- Receipt generation
+
+## Related Types
+
+- [OrderListDto](/api/dtos/order-list) - Condensed order information for list views
+- [RiderDto](/api/dtos/rider) - Courier/rider information
+
+## Source
+
+`dtos/OrderDetails.dto.ts`

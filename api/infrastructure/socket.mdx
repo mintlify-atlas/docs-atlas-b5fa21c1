@@ -1,0 +1,306 @@
+---
+title: 'WebSocket Client'
+description: 'Socket.IO-based real-time order event handling'
+---
+
+## Overview
+
+The `SocketOrderRealtime` class provides WebSocket-based real-time communication for order events. It implements the `OrderRealtime` interface using Socket.IO client and handles automatic reconnection, event subscriptions, and connection lifecycle management.
+
+## OrderRealtime Interface
+
+The core interface that defines the contract for real-time order communication:
+
+```typescript
+export interface OrderRealtime {
+  connect(events: OrderEvents): void;
+  disconnect(): void;
+}
+```
+
+## OrderEvents Type
+
+Defines the event handlers for order-related events:
+
+```typescript
+export type OrderEvents = {
+  onCreated?: (order: OrderListDto) => void;
+  onUpdated?: (order: OrderListDto) => void;
+};
+```
+
+<ParamField path="onCreated" type="function" optional>
+  Callback invoked when a new order is created. Receives the created order data.
+</ParamField>
+
+<ParamField path="onUpdated" type="function" optional>
+  Callback invoked when an order status is updated. Receives the updated order data.
+</ParamField>
+
+## SocketOrderRealtime Class
+
+### Location
+
+`infraestructure/socket/order-realtime.socket.ts`
+
+### Constructor
+
+```typescript
+constructor(private readonly baseUrl: string)
+```
+
+<ParamField path="baseUrl" type="string" required>
+  The WebSocket server URL to connect to (e.g., `http://localhost:3004`)
+</ParamField>
+
+### Properties
+
+<ResponseField name="socket" type="Socket | null" default="null">
+  The Socket.IO client instance. Null when disconnected.
+</ResponseField>
+
+## Methods
+
+### connect()
+
+Establishes a WebSocket connection and subscribes to order events.
+
+```typescript
+connect(events: OrderEvents): void
+```
+
+<ParamField path="events" type="OrderEvents" required>
+  An object containing event handler callbacks for order events
+</ParamField>
+
+#### Connection Configuration
+
+The connection is established with the following settings:
+
+<ResponseField name="transports" type="string[]">
+  Set to `["websocket"]` for WebSocket-only transport (no polling fallback)
+</ResponseField>
+
+<ResponseField name="reconnection" type="boolean">
+  Set to `true` to enable automatic reconnection on connection loss
+</ResponseField>
+
+<ResponseField name="reconnectionAttempts" type="number">
+  Maximum of 5 reconnection attempts before giving up
+</ResponseField>
+
+<ResponseField name="reconnectionDelay" type="number">
+  2000ms (2 seconds) delay between reconnection attempts
+</ResponseField>
+
+#### Event Subscriptions
+
+The method subscribes to the following Socket.IO events:
+
+<ResponseField name="order.created" type="event">
+  Emitted when a new order is created. Triggers `events.onCreated()` callback with order data.
+</ResponseField>
+
+<ResponseField name="order.status.updated" type="event">
+  Emitted when an order status changes. Triggers `events.onUpdated()` callback with order data.
+</ResponseField>
+
+<Note>
+  The method removes any existing event listeners before registering new ones to prevent duplicate handlers if `connect()` is called multiple times.
+</Note>
+
+#### Implementation
+
+```typescript
+connect(events: OrderEvents): void {
+  if (!this.socket) {
+    this.socket = io(this.baseUrl, {
+      transports: ["websocket"],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+    });
+  }
+
+  this.socket.off("order.created");
+  this.socket.off("order.status.updated");
+
+  this.socket.on("order.created", (order: OrderListDto) => {
+    events.onCreated?.(order);
+  });
+
+  this.socket.on("order.status.updated", (order: OrderListDto) => {
+    events.onUpdated?.(order);
+  });
+}
+```
+
+### disconnect()
+
+Closes the WebSocket connection and cleans up resources.
+
+```typescript
+disconnect(): void
+```
+
+This method:
+- Calls `socket.disconnect()` to close the connection
+- Sets the socket instance to `null` to free memory
+- Should be called when the component unmounts or real-time updates are no longer needed
+
+```typescript
+disconnect(): void {
+  this.socket?.disconnect();
+  this.socket = null;
+}
+```
+
+## Usage Example
+
+Here's how to use the WebSocket client in a React component:
+
+```typescript
+import { SocketOrderRealtime } from '@/infraestructure/socket/order-realtime.socket';
+import { OrderListDto } from '@/dtos/OrderList.dto';
+import { useEffect, useState } from 'react';
+
+function OrderBoard() {
+  const [orders, setOrders] = useState<OrderListDto[]>([]);
+  
+  useEffect(() => {
+    // Initialize the WebSocket client
+    const socket = new SocketOrderRealtime(
+      process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3004'
+    );
+
+    // Connect and set up event handlers
+    socket.connect({
+      onCreated: (newOrder) => {
+        console.log('New order created:', newOrder);
+        setOrders(prev => [...prev, newOrder]);
+      },
+      onUpdated: (updatedOrder) => {
+        console.log('Order updated:', updatedOrder);
+        setOrders(prev =>
+          prev.map(order =>
+            order.id === updatedOrder.id ? updatedOrder : order
+          )
+        );
+      },
+    });
+
+    // Cleanup on unmount
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  return (
+    <div>
+      {orders.map(order => (
+        <OrderCard key={order.id} order={order} />
+      ))}
+    </div>
+  );
+}
+```
+
+## Advanced Usage
+
+### Reconnection Handling
+
+The client automatically handles reconnection with exponential backoff:
+
+```typescript
+// Socket.IO will automatically:
+// 1. Detect connection loss
+// 2. Attempt to reconnect up to 5 times
+// 3. Wait 2 seconds between each attempt
+// 4. Resubscribe to all events on successful reconnection
+```
+
+<Warning>
+  After 5 failed reconnection attempts, the socket will stop trying. Consider implementing additional error handling or user notification for permanent connection failures.
+</Warning>
+
+### Dynamic Event Handling
+
+You can update event handlers by calling `connect()` again with new callbacks:
+
+```typescript
+const socket = new SocketOrderRealtime(baseUrl);
+
+// Initial connection
+socket.connect({
+  onCreated: (order) => console.log('Created:', order),
+});
+
+// Later, update handlers without disconnecting
+socket.connect({
+  onCreated: (order) => handleNewOrder(order),
+  onUpdated: (order) => handleOrderUpdate(order),
+});
+```
+
+### Connection State Monitoring
+
+You can extend the implementation to expose connection state:
+
+```typescript
+// Check if connected
+if (socket['socket']?.connected) {
+  console.log('Socket is connected');
+}
+```
+
+<Note>
+  The socket property is private. For production use, consider adding public methods to expose connection state and health information.
+</Note>
+
+## Event Data Format
+
+Both `order.created` and `order.status.updated` events receive an `OrderListDto` object:
+
+```typescript
+interface OrderListDto {
+  id: string;
+  customerName: string;
+  status: OrderStatus;
+  total: number;
+  createdAt: string;
+  // ... other order fields
+}
+```
+
+## Implementation Details
+
+### Transport Protocol
+
+The client uses WebSocket-only transport (`transports: ["websocket"]`) to avoid the Socket.IO polling fallback. This provides:
+- Lower latency
+- Reduced server load
+- More efficient real-time updates
+
+<Warning>
+  WebSocket-only transport requires proper WebSocket support on the server. Ensure your backend and any proxies (nginx, load balancers) are configured to handle WebSocket upgrades.
+</Warning>
+
+### Memory Management
+
+The implementation follows best practices for memory management:
+- Socket instance is reused if `connect()` is called multiple times
+- Old event listeners are removed before adding new ones
+- Socket is properly disposed on `disconnect()`
+
+### Thread Safety
+
+Socket.IO client operations are asynchronous and event-driven. In React applications:
+- Always clean up connections in `useEffect` return functions
+- Consider using refs for socket instances in functional components
+- Avoid creating multiple socket instances for the same connection
+
+## Related
+
+- [HTTP Client](/api/infrastructure/http-client) - For request/response API communication
+- [Order Repository](/api/application/order-repository) - Works alongside WebSocket for data fetching
+- [Order List DTO](/api/dtos/order-list) - Data structure used in events

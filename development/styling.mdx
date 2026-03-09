@@ -1,0 +1,657 @@
+---
+title: "Styling Guide"
+description: "Learn how to style components using SCSS Modules, design tokens, and the theming system"
+---
+
+## Styling Approach
+
+KDS Frontend uses **SCSS Modules** for component styling. This approach provides:
+
+<CardGroup cols={2}>
+  <Card title="Scoped Styles" icon="lock">
+    CSS classes are automatically scoped to prevent naming conflicts
+  </Card>
+  <Card title="Type Safety" icon="shield-check">
+    TypeScript integration for CSS class names
+  </Card>
+  <Card title="CSS Variables" icon="palette">
+    Dynamic theming with CSS custom properties
+  </Card>
+  <Card title="SCSS Features" icon="code">
+    Mixins, variables, and nesting for DRY styles
+  </Card>
+</CardGroup>
+
+## SCSS Modules
+
+### How It Works
+
+Each component has a corresponding `.module.scss` file that is imported as a JavaScript object.
+
+<CodeGroup>
+```typescript OrderCard.tsx
+import s from './OrderCard.module.scss';
+
+export default function OrderCard({ order }: OrderCardProps) {
+  return (
+    <div className={s.card}>
+      <div className={s.content}>
+        <div className={s.partnerName}>{order.partnerName}</div>
+        <div className={s.orderNumber}>Order: {order.displayNumber}</div>
+      </div>
+    </div>
+  );
+}
+```
+
+```scss OrderCard.module.scss
+.card {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: var(--shadow-default);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.partnerName {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.orderNumber {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+```
+</CodeGroup>
+
+<Note>
+  Notice the `.module.scss` extension. This tells Next.js to process the file as a CSS Module, generating unique class names like `OrderCard_card__a1b2c3`.
+</Note>
+
+### Combining Multiple Classes
+
+Use the `classnames` (aliased as `clsx`) library to conditionally combine classes:
+
+<CodeGroup>
+```typescript Dynamic classes
+import clsx from 'classnames';
+import s from './OrderCard.module.scss';
+
+const STATUS_CLASS: Record<OrderStatus, string | undefined> = {
+  RECEIVED: s.received,
+  CONFIRMED: s.confirmed,
+  PREPARING: s.preparing,
+  READY: s.ready,
+  PICKED_UP: s.pickedUp,
+  DELIVERED: s.delivered,
+  CANCELLED: s.cancelled,
+};
+
+export default function OrderCard({ order }: OrderCardProps) {
+  const isHighPriority = order.priority === 'HIGH';
+  
+  return (
+    <Card
+      className={clsx(
+        s.card,
+        STATUS_CLASS[order.status],
+        isHighPriority && s.priorityHigh
+      )}
+    >
+      {/* ... */}
+    </Card>
+  );
+}
+```
+
+```scss Status-specific styles
+.received {
+  background: var(--status-received);
+}
+
+.confirmed {
+  background: var(--status-confirmed);
+}
+
+.preparing {
+  background: var(--status-preparing);
+}
+
+.priorityHigh {
+  border-left: 4px solid var(--priority-high-text);
+}
+```
+</CodeGroup>
+
+## Design Tokens (CSS Variables)
+
+All design tokens are defined in `styles/globals.scss` as CSS custom properties. This enables **runtime theming** without rebuilding.
+
+### Color Tokens
+
+<CodeGroup>
+```scss Light theme (default)
+:root {
+  /* Backgrounds */
+  --bg-app: #f8f9fb;
+  --bg-surface: #ffffff;
+  --bg-column: #f4f5f7;
+  --bg-modal: #ffffff;
+
+  /* Text */
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --text-muted: #666;
+  --text-label: #777;
+
+  /* Borders & Dividers */
+  --border-default: #dfe1e6;
+  --divider: #e5e5e5;
+
+  /* Shadows */
+  --shadow-default: 0 8px 20px rgba(0, 0, 0, 0.08);
+  --shadow-modal: 0 25px 60px rgba(0, 0, 0, 0.35);
+  --shadow-rider: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+```
+
+```scss Dark theme
+html.dark {
+  /* Backgrounds */
+  --bg-app: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-column: #1f2937;
+  --bg-modal: #1e293b;
+
+  /* Text */
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-muted: #9ca3af;
+  --text-label: #94a3b8;
+
+  /* Borders & Dividers */
+  --border-default: #334155;
+  --divider: #334155;
+
+  /* Shadows */
+  --shadow-default: 0 12px 30px rgba(0, 0, 0, 0.4);
+  --shadow-modal: 0 30px 80px rgba(0, 0, 0, 0.6);
+  --shadow-rider: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+```
+</CodeGroup>
+
+### Status Colors
+
+Each order status has its own background color:
+
+```scss Status colors
+:root {
+  --status-received: #f0f4ff;    /* Light blue */
+  --status-confirmed: #f2fbf7;   /* Light green */
+  --status-preparing: #fff9f1;   /* Light amber */
+  --status-ready: #f3fff8;       /* Light mint */
+  --status-pickedup: #f5f3ff;    /* Light violet */
+  --status-delivered: #f1f5f9;   /* Light slate */
+  --status-cancelled: #fff1f3;   /* Light red */
+}
+
+html.dark {
+  --status-received: #1e293b;    /* Dark blue */
+  --status-confirmed: #0f2f24;   /* Dark green */
+  --status-preparing: #3a2e12;   /* Dark amber */
+  --status-ready: #0f3328;       /* Dark mint */
+  --status-pickedup: #2a1f3d;    /* Dark violet */
+  --status-delivered: #1f2937;   /* Dark slate */
+  --status-cancelled: #3a1a1f;   /* Dark red */
+}
+```
+
+### Priority Colors
+
+```scss Priority badges
+:root {
+  --priority-normal-bg: #eef2ff;
+  --priority-normal-text: #3730a3;
+  --priority-high-bg: #fff7ed;
+  --priority-high-text: #9a3412;
+}
+
+html.dark {
+  --priority-normal-bg: #1e293b;
+  --priority-normal-text: #c7d2fe;
+  --priority-high-bg: #3f2a0f;
+  --priority-high-text: #fdba74;
+}
+```
+
+### Layout Tokens
+
+```scss Spacing and sizing
+:root {
+  --max-width: 1100px;
+  --border-radius: 12px;
+}
+```
+
+<Accordion title="Why use CSS variables over SCSS variables?">
+  CSS variables can be changed at **runtime**, enabling dynamic theming. SCSS variables are compiled at build time and cannot change based on user preferences.
+</Accordion>
+
+## Theme System
+
+The application supports light and dark modes using a **class-based approach**.
+
+### How It Works
+
+<Steps>
+  <Step title="Theme Provider">
+    The `ThemeProvider` context manages theme state and persists it to localStorage:
+    
+    ```typescript contexts/Theme.context.tsx
+    export function ThemeProvider({ children }: { children: React.ReactNode }) {
+      const [theme, setTheme] = useState<Theme>("light");
+
+      useEffect(() => {
+        const html = document.documentElement;
+        if (theme === "dark") {
+          html.classList.add("dark");
+        } else {
+          html.classList.remove("dark");
+        }
+        localStorage.setItem("theme", theme);
+      }, [theme]);
+
+      const toggleTheme = () =>
+        setTheme(prev => (prev === "light" ? "dark" : "light"));
+
+      return (
+        <ThemeContext.Provider value={{ theme, toggleTheme }}>
+          {children}
+        </ThemeContext.Provider>
+      );
+    }
+    ```
+  </Step>
+
+  <Step title="Dark class on <html>">
+    When dark mode is active, the `dark` class is added to the `<html>` element. This cascades down to all CSS variable definitions.
+  </Step>
+
+  <Step title="CSS variables update">
+    All `html.dark` CSS variables override the root values, instantly changing the entire application's appearance.
+  </Step>
+</Steps>
+
+### Using the Theme Context
+
+Access and toggle the theme from any component:
+
+```typescript components/theme/ThemeToggle.tsx
+import { useTheme } from '@/contexts/Theme.context';
+
+export default function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+
+  return (
+    <button onClick={toggleTheme}>
+      {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
+    </button>
+  );
+}
+```
+
+<Note>
+  Theme preference is automatically saved to localStorage and restored on subsequent visits.
+</Note>
+
+## SCSS Variables and Mixins
+
+The `styles/variables.scss` file contains **build-time** SCSS variables and mixins:
+
+<CodeGroup>
+```scss Color palette
+// Brand colors
+$cta: #ae191a;
+$secondary: #faf2ee;
+$tertiary: #05a450;
+
+// Grayscale
+$white: #ffffff;
+$black: #000000;
+$gray-100: #191919;
+$gray-200: #323232;
+// ... up to gray-1000
+```
+
+```scss Responsive breakpoints
+$breakpoints: (
+  xs: 480px,
+  sm: 768px,
+  md: 1024px,
+  lg: 1280px,
+  xl: 1440px
+);
+
+@mixin respond($breakpoint) {
+  @media (max-width: map-get($breakpoints, $breakpoint)) {
+    @content;
+  }
+}
+```
+</CodeGroup>
+
+### Using Responsive Mixins
+
+Apply responsive styles with the `@include respond()` mixin:
+
+```scss Responsive font sizing
+html {
+  font-size: 16px;
+
+  @include respond(sm) {
+    font-size: 14px;
+  }
+}
+```
+
+This compiles to:
+
+```css Compiled CSS
+html {
+  font-size: 16px;
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 14px;
+  }
+}
+```
+
+## Global Styles
+
+The `styles/globals.scss` file includes global resets and base styles:
+
+<CodeGroup>
+```scss HTML/Body reset
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  min-height: 100dvh; // Modern vh unit for mobile
+  background: var(--bg-app);
+  color: var(--text-primary);
+}
+```
+
+```scss Box model reset
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  font-family:
+    Montserrat,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+```
+
+```scss Smooth transitions
+*:not(img) {
+  transition:
+    fill 280ms,
+    stroke 280ms,
+    color 280ms,
+    background 280ms,
+    background-color 280ms;
+}
+```
+</CodeGroup>
+
+<Note>
+  The `100dvh` unit is used instead of `100vh` to avoid issues on mobile browsers where the address bar affects viewport height.
+</Note>
+
+## Component Styling Example
+
+Here's a complete example showing all styling concepts:
+
+<CodeGroup>
+```typescript Component
+import clsx from 'classnames';
+import s from './OrderCard.module.scss';
+import type { OrderListDto } from '@/dtos/OrderList.dto';
+import { OrderStatus } from '@/domain/order/order-status';
+
+const STATUS_CLASS: Record<OrderStatus, string | undefined> = {
+  RECEIVED: s.received,
+  CONFIRMED: s.confirmed,
+  PREPARING: s.preparing,
+  READY: s.ready,
+  PICKED_UP: s.pickedUp,
+  DELIVERED: s.delivered,
+  CANCELLED: s.cancelled,
+};
+
+type OrderCardProps = {
+  order: OrderListDto;
+  onClick?: () => void;
+};
+
+export default function OrderCard({ order, onClick }: OrderCardProps) {
+  const isHighPriority = order.priority === "HIGH";
+  
+  return (
+    <div
+      className={clsx(
+        s.card,
+        STATUS_CLASS[order.status]
+      )}
+      onClick={onClick}
+    >
+      <div className={s.content}>
+        <div className={s.partnerName}>{order.partnerName}</div>
+        <div className={s.orderNumber}>Order: {order.displayNumber}</div>
+        
+        <span
+          className={clsx(
+            s.priority,
+            isHighPriority ? s.priorityHigh : s.priorityNormal
+          )}
+        >
+          {isHighPriority ? "High" : "Normal"}
+        </span>
+      </div>
+    </div>
+  );
+}
+```
+
+```scss Styles
+@import "/styles/variables.scss";
+
+.card {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: var(--shadow-default);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+
+  &:hover {
+    box-shadow: 0 6px 18px rgba(9, 30, 66, 0.18);
+    transform: translateY(-2px);
+  }
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.partnerName {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.orderNumber {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.priority {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 5px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.priorityNormal {
+  background: var(--priority-normal-bg);
+  color: var(--priority-normal-text);
+}
+
+.priorityHigh {
+  background: var(--priority-high-bg);
+  color: var(--priority-high-text);
+}
+
+/* Status backgrounds */
+.received {
+  background: var(--status-received);
+}
+
+.confirmed {
+  background: var(--status-confirmed);
+}
+
+.preparing {
+  background: var(--status-preparing);
+}
+
+.ready {
+  background: var(--status-ready);
+}
+
+.pickedUp {
+  background: var(--status-pickedup);
+}
+
+.delivered {
+  background: var(--status-delivered);
+}
+
+.cancelled {
+  background: var(--status-cancelled);
+}
+```
+</CodeGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use CSS Variables" icon="palette">
+    Always use CSS variables for colors, spacing, and shadows to support theming
+  </Card>
+  <Card title="Scope Styles" icon="lock">
+    Keep styles scoped to components using `.module.scss` files
+  </Card>
+  <Card title="Semantic Class Names" icon="tags">
+    Use descriptive class names like `.partnerName` instead of `.text-bold`
+  </Card>
+  <Card title="Responsive by Default" icon="mobile">
+    Use the `@include respond()` mixin for mobile-first responsive design
+  </Card>
+</CardGroup>
+
+<AccordionGroup>
+  <Accordion title="Avoid inline styles">
+    Inline styles cannot be overridden by themes and hurt performance. Use CSS classes instead.
+  </Accordion>
+
+  <Accordion title="Don't hardcode colors">
+    Always use CSS variables so themes work correctly:
+    ```scss
+    /* ❌ Bad */
+    .card {
+      background: #ffffff;
+      color: #1f2937;
+    }
+
+    /* ✅ Good */
+    .card {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Import variables when needed">
+    If you need SCSS variables or mixins, import them:
+    ```scss
+    @import "/styles/variables.scss";
+
+    .container {
+      @include respond(sm) {
+        padding: 8px;
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Debugging Styles
+
+<Steps>
+  <Step title="Inspect generated class names">
+    CSS Modules generate unique class names. Use browser DevTools to see the compiled class:
+    ```
+    OrderCard_card__a1b2c3
+    ```
+  </Step>
+
+  <Step title="Check CSS variable values">
+    In DevTools, inspect the `:root` or `html.dark` selector to see current CSS variable values.
+  </Step>
+
+  <Step title="Verify theme class">
+    Ensure the `<html>` element has the `dark` class when dark mode is active.
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Setup Guide" icon="rocket" href="/development/setup">
+    Learn how to install and run the project
+  </Card>
+  <Card title="Project Structure" icon="folder-tree" href="/development/structure">
+    Understand the architecture and directory organization
+  </Card>
+</CardGroup>

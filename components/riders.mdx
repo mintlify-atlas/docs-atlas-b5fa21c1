@@ -1,0 +1,384 @@
+---
+title: Riders
+description: Specialized card component for displaying courier/rider information for picked-up orders
+---
+
+## Overview
+
+The `Riders` component is a specialized card that displays courier (rider) information for orders in the "PICKED_UP" status. It shows rider details, order information, and a visual avatar, providing a distinct visual representation for orders currently with delivery couriers.
+
+<Note>
+  This component is used exclusively in the kanban board's "PICKED_UP" column, replacing the standard OrderCard for better courier tracking.
+</Note>
+
+## Props Interface
+
+```tsx
+type RidersProps = {
+  rider: RiderDto;
+  onClick?: () => void;
+};
+```
+
+<ParamField path="rider" type="RiderDto" required>
+  The rider data object containing courier and order information.
+  
+  **RiderDto Structure:**
+  ```tsx
+  type RiderDto = {
+    id: string;
+    name: string;
+    orderId: string;
+    displayNumber: string;
+    riderNumber: number;
+    partnerName?: string;
+  }
+  ```
+</ParamField>
+
+<ParamField path="onClick" type="() => void">
+  Optional callback function invoked when the card is clicked. Typically used to open order details or rider information.
+</ParamField>
+
+## RiderDto Fields
+
+<Tabs>
+  <Tab title="id">
+    **Type:** `string`
+    
+    Unique identifier for the rider/order combination. Used as the React key and for lookups.
+  </Tab>
+  <Tab title="name">
+    **Type:** `string`
+    
+    The courier's name (e.g., "Juan Pérez"). Displayed prominently on the card.
+  </Tab>
+  <Tab title="orderId">
+    **Type:** `string`
+    
+    Reference to the associated order ID. Used for linking back to order details.
+  </Tab>
+  <Tab title="displayNumber">
+    **Type:** `string`
+    
+    Human-readable order number shown to users (e.g., "#1234").
+  </Tab>
+  <Tab title="riderNumber">
+    **Type:** `number`
+    
+    Unique rider identification number. Displayed as "Rider #123" for easy reference.
+  </Tab>
+  <Tab title="partnerName">
+    **Type:** `string | undefined`
+    
+    Optional restaurant/partner name. Shown at the top of the card when available.
+  </Tab>
+</Tabs>
+
+## Component Structure
+
+```tsx
+function Riders({ rider, onClick }: RidersProps) {
+  return (
+    <Card
+      size="md"
+      variant="elevated"
+      className={clsx(s.riderCard)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+    >
+      <div className={s.content}>
+        <div className={s.info}>
+          <div className={s.partner}>{rider.partnerName}</div>
+          <div className={s.orderNumber}>Orden: {rider.displayNumber}</div>
+          <div className={s.name}>{rider.name}</div>
+          <div className={s.number}>Rider #{rider.riderNumber}</div>
+        </div>
+
+        <div className={s.avatar}>
+          <RiderAvatar />
+        </div>
+      </div>
+    </Card>
+  );
+}
+```
+
+## Visual Layout
+
+The component uses a two-column layout:
+
+<CardGroup cols={2}>
+  <Card title="Left Column" icon="info-circle">
+    Displays textual information:
+    - Partner name (if available)
+    - Order display number
+    - Courier name
+    - Rider number
+  </Card>
+  <Card title="Right Column" icon="user-circle">
+    Shows a visual rider avatar for quick recognition
+  </Card>
+</CardGroup>
+
+## Information Display
+
+### Partner Name
+
+```tsx
+<div className={s.partner}>{rider.partnerName}</div>
+```
+
+Displays the restaurant or partner name at the top. This helps identify which establishment the order is from.
+
+### Order Number
+
+```tsx
+<div className={s.orderNumber}>Orden: {rider.displayNumber}</div>
+```
+
+Shows the order's display number prefixed with "Orden:" for clarity. This matches the format used in OrderCard for consistency.
+
+### Rider Name
+
+```tsx
+<div className={s.name}>{rider.name}</div>
+```
+
+Displays the courier's name prominently. This is the primary identifier for tracking who has the order.
+
+### Rider Number
+
+```tsx
+<div className={s.number}>Rider #{rider.riderNumber}</div>
+```
+
+Shows a numeric identifier for the rider in the format "Rider #123". This provides an additional reference point for tracking and communication.
+
+## Click Handling
+
+The component implements the same click handling pattern as OrderCard:
+
+```tsx
+onClick={(e) => {
+  e.stopPropagation();
+  onClick?.();
+}}
+```
+
+<Note>
+  Event propagation is stopped to prevent conflicts with drag-and-drop handlers. This allows clicking to view order details while still supporting drag operations.
+</Note>
+
+## Memoization
+
+The component is wrapped with React's `memo` for performance optimization:
+
+```tsx
+export default memo(Riders);
+```
+
+**Benefits:**
+- Prevents unnecessary re-renders when parent components update
+- Improves performance in lists with many rider cards
+- Only re-renders when props actually change
+
+<Warning>
+  Because the component is memoized, ensure that the `onClick` callback is stable (e.g., wrapped in `useCallback`) to avoid breaking memoization.
+</Warning>
+
+## Usage in Kanban
+
+The Riders component is used in the Kanban board for picked-up orders:
+
+```tsx
+{status === "PICKED_UP"
+  ? riders.map((rider) => (
+      <DraggableRiderCard
+        key={rider.id}
+        rider={rider}
+        onClick={setSelectedOrderId}
+      />
+    ))
+  : columnOrders.map((order) => (
+      <DraggableOrderCard
+        key={order.id}
+        order={order}
+        onClick={setSelectedOrderId}
+      />
+    ))}
+```
+
+## Rider Data Transformation
+
+Rider data is typically derived from orders with PICKED_UP status:
+
+```tsx
+const riders: RiderDto[] = useMemo(() => {
+  return Object.values(ordersByStatus)
+    .flat()
+    .filter((order) => order.status === "PICKED_UP" && order.courierName)
+    .map(
+      (order): RiderDto => ({
+        id: order.id,
+        name: order.courierName!,
+        orderId: order.id,
+        displayNumber: order.displayNumber,
+        riderNumber: Number(order.id.slice(-3)) || 100,
+        ...(order.partnerName && {
+          partnerName: order.partnerName,
+        }),
+      }),
+    );
+}, [ordersByStatus]);
+```
+
+## Usage Examples
+
+### Basic Usage
+
+```tsx
+import Riders from "@/components/Riders/Riders";
+
+function RiderList({ riders }) {
+  return (
+    <div>
+      {riders.map((rider) => (
+        <Riders
+          key={rider.id}
+          rider={rider}
+          onClick={() => console.log('Rider clicked:', rider.id)}
+        />
+      ))}
+    </div>
+  );
+}
+```
+
+### With Order Details
+
+```tsx
+import Riders from "@/components/Riders/Riders";
+import { OrderDetailModal } from "@/components/modal/OrderDetailsModal";
+
+function PickedUpColumn({ riders }) {
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
+  
+  return (
+    <>
+      {riders.map((rider) => (
+        <Riders
+          key={rider.id}
+          rider={rider}
+          onClick={() => setSelectedOrderId(rider.orderId)}
+        />
+      ))}
+      
+      {selectedOrderId && (
+        <OrderDetailModal
+          orderId={selectedOrderId}
+          onClose={() => setSelectedOrderId(null)}
+        />
+      )}
+    </>
+  );
+}
+```
+
+### In Drag Overlay
+
+```tsx
+import { DragOverlay } from "@dnd-kit/core";
+import Riders from "@/components/Riders/Riders";
+import { mapOrderToRiderViewModel } from "@/components/order/mappers/map-order-to-rider";
+
+function KanbanBoard() {
+  const [activeOrder, setActiveOrder] = useState(null);
+  
+  return (
+    <DragOverlay>
+      {activeOrder && activeOrder.status === "PICKED_UP" && (
+        <Riders rider={mapOrderToRiderViewModel(activeOrder)} />
+      )}
+    </DragOverlay>
+  );
+}
+```
+
+## Styling
+
+The component uses CSS modules for scoped styling:
+
+```tsx
+import s from "./Riders.module.scss";
+```
+
+Key style classes:
+- `s.riderCard`: Base card styling
+- `s.content`: Main content container
+- `s.info`: Information column layout
+- `s.partner`: Partner name styling
+- `s.orderNumber`: Order number display
+- `s.name`: Rider name typography
+- `s.number`: Rider number styling
+- `s.avatar`: Avatar container positioning
+
+## Integration Points
+
+### Base Components
+
+- **Card**: Provides the base card structure with elevation
+- **RiderAvatar**: Visual avatar representation of the courier
+- **clsx**: Utility for conditional class composition
+
+### Related Types
+
+- **RiderDto**: Data transfer object for rider information
+- **OrderListDto**: Source order data (transformed to RiderDto)
+
+## Visual Differentiation
+
+The Riders component provides several advantages over using OrderCard for picked-up orders:
+
+<CardGroup cols={2}>
+  <Card title="Courier Focus" icon="motorcycle">
+    Emphasizes the courier rather than order status
+  </Card>
+  <Card title="Avatar Visual" icon="user-circle">
+    Provides quick visual recognition with rider avatar
+  </Card>
+  <Card title="Rider Number" icon="hashtag">
+    Includes rider-specific identification for tracking
+  </Card>
+  <Card title="Delivery Context" icon="truck">
+    Better represents the delivery phase of the order lifecycle
+  </Card>
+</CardGroup>
+
+## Performance Considerations
+
+1. **Memoization**: Component is wrapped in `memo()` to prevent unnecessary re-renders
+2. **Stable Props**: Use stable callbacks (e.g., `useCallback`) for onClick to maintain memoization benefits
+3. **Lazy Avatar**: RiderAvatar component likely implements its own optimization
+
+## Accessibility Recommendations
+
+<Note>
+  Consider enhancing accessibility with:
+  - `role="button"` when onClick is provided
+  - `aria-label` describing the rider and order (e.g., "Rider Juan Pérez, Order 1234")
+  - `tabIndex={0}` for keyboard navigation
+  - Focus indicators for keyboard users
+</Note>
+
+## Related Components
+
+- [Kanban](/components/kanban): Parent component using Riders for picked-up orders
+- [OrderCard](/components/order-card): Alternative card for non-picked-up orders
+- DraggableRiderCard: Wrapper providing drag functionality (internal component)
+
+## Source Location
+
+`components/Riders/Riders.tsx:1`
