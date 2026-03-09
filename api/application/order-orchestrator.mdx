@@ -1,0 +1,243 @@
+---
+title: 'OrderOrchestrator'
+description: 'Coordinates HTTP and WebSocket operations for order management'
+---
+
+## Overview
+
+The `OrderOrchestrator` class provides a unified interface that coordinates both HTTP-based repository operations and real-time WebSocket updates. It acts as the single entry point for all order-related operations in the application.
+
+**Source**: `orchestrators/order/OrderOrchestrator.ts:8`
+
+## Class Definition
+
+```typescript
+export class OrderOrchestrator {
+  constructor(
+    private readonly repository: OrderRepository,
+    private readonly realtime: OrderRealtime,
+  ) {}
+
+  connect(events: OrderEvents): void {
+    this.realtime.connect(events);
+  }
+
+  disconnect(): void {
+    this.realtime.disconnect();
+  }
+
+  async listBoard(): Promise<OrderListDto[]> {
+    return this.repository.listBoard();
+  }
+
+  async getOrderDetail(id: string): Promise<OrderDetailDto> {
+    return this.repository.getDetail(id);
+  }
+
+  async updateOrderState(id: string, toStatus: OrderStatus): Promise<void> {
+    await this.repository.updateStatus(id, toStatus);
+  }
+}
+```
+
+## Constructor
+
+<ParamField path="repository" type="OrderRepository" required>
+  Repository implementation for HTTP-based order operations
+</ParamField>
+
+<ParamField path="realtime" type="OrderRealtime" required>
+  Real-time implementation for WebSocket-based order updates
+</ParamField>
+
+## Methods
+
+### connect()
+
+Establishes real-time WebSocket connection for order updates.
+
+```typescript
+connect(events: OrderEvents): void
+```
+
+<ParamField path="events" type="OrderEvents" required>
+  Event handlers for order creation and updates
+  
+  - `onCreated`: Called when a new order is created
+  - `onUpdated`: Called when an order status is updated
+</ParamField>
+
+**Example:**
+
+```typescript
+orchestrator.connect({
+  onCreated: (order) => console.log('New order:', order),
+  onUpdated: (order) => console.log('Order updated:', order)
+});
+```
+
+### disconnect()
+
+Closes the WebSocket connection.
+
+```typescript
+disconnect(): void
+```
+
+**Example:**
+
+```typescript
+// Cleanup on component unmount
+useEffect(() => {
+  orchestrator.connect(events);
+  
+  return () => {
+    orchestrator.disconnect();
+  };
+}, []);
+```
+
+### listBoard()
+
+Fetches all orders for the board view via HTTP.
+
+```typescript
+async listBoard(): Promise<OrderListDto[]>
+```
+
+**Returns:** Promise resolving to an array of order summaries
+
+**Example:**
+
+```typescript
+const orders = await orchestrator.listBoard();
+console.log(`Loaded ${orders.length} orders`);
+```
+
+### getOrderDetail()
+
+Fetches detailed information for a specific order.
+
+```typescript
+async getOrderDetail(id: string): Promise<OrderDetailDto>
+```
+
+<ParamField path="id" type="string" required>
+  Unique identifier of the order
+</ParamField>
+
+**Returns:** Promise resolving to complete order details including items
+
+**Example:**
+
+```typescript
+const detail = await orchestrator.getOrderDetail('order-123');
+console.log('Customer:', detail.customerName);
+console.log('Items:', detail.items.length);
+```
+
+### updateOrderState()
+
+Updates an order's status via HTTP.
+
+```typescript
+async updateOrderState(id: string, toStatus: OrderStatus): Promise<void>
+```
+
+<ParamField path="id" type="string" required>
+  Unique identifier of the order to update
+</ParamField>
+
+<ParamField path="toStatus" type="OrderStatus" required>
+  New status to set (must be a valid transition)
+</ParamField>
+
+**Example:**
+
+```typescript
+try {
+  await orchestrator.updateOrderState('order-123', 'CONFIRMED');
+  console.log('Order confirmed successfully');
+} catch (error) {
+  console.error('Failed to update order:', error);
+}
+```
+
+<Warning>
+  This method does not validate transitions. Validation should be performed by the caller using `canTransition()` before calling this method.
+</Warning>
+
+## Usage Pattern
+
+### Service Initialization
+
+```typescript
+import { AxiosHttpClient } from '@/infraestructure/http/axios-http.client';
+import { HttpOrderRepository } from '@/infraestructure/http/order.repository';
+import { SocketOrderRealtime } from '@/infraestructure/socket/order-realtime.socket';
+import { OrderOrchestrator } from '@/orchestrators/order/OrderOrchestrator';
+
+// Create infrastructure implementations
+const httpClient = new AxiosHttpClient(
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3004'
+);
+const repository = new HttpOrderRepository(httpClient);
+const realtime = new SocketOrderRealtime(
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3004'
+);
+
+// Create orchestrator
+export const orderOrchestrator = new OrderOrchestrator(repository, realtime);
+```
+
+### React Integration
+
+```typescript
+import { orderOrchestrator } from '@/services/order.service';
+
+function OrdersProvider({ children }) {
+  const [orders, setOrders] = useState<OrderListDto[]>([]);
+
+  useEffect(() => {
+    // Load initial data
+    orderOrchestrator.listBoard().then(setOrders);
+
+    // Connect to real-time updates
+    orchestrator.connect({
+      onCreated: (order) => setOrders(prev => [order, ...prev]),
+      onUpdated: (order) => setOrders(prev => 
+        prev.map(o => o.id === order.id ? order : o)
+      )
+    });
+
+    // Cleanup
+    return () => orchestrator.disconnect();
+  }, []);
+
+  return <OrdersContext.Provider value={{ orders }}>{children}</OrdersContext.Provider>;
+}
+```
+
+## Architecture Benefits
+
+<CardGroup cols={2}>
+  <Card title="Separation of Concerns" icon="layer-group">
+    Decouples HTTP and WebSocket implementations from application logic
+  </Card>
+  <Card title="Single Entry Point" icon="door-open">
+    All order operations go through one consistent interface
+  </Card>
+  <Card title="Testability" icon="flask">
+    Easy to mock for testing by providing test implementations
+  </Card>
+  <Card title="Flexibility" icon="screwdriver-wrench">
+    Infrastructure can be swapped without changing application code
+  </Card>
+</CardGroup>
+
+## Related
+
+- [OrderRepository](/api/application/order-repository) - Repository interface
+- [OrderRealtime](/api/application/order-realtime) - Real-time interface
+- [HTTP Client](/api/infrastructure/http-client) - HTTP implementation
+- [WebSocket Client](/api/infrastructure/socket) - WebSocket implementation

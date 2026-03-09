@@ -1,13 +1,133 @@
 ---
 title: 'Application Hooks'
-description: 'React hooks for order management in the application layer'
+description: 'React hooks for order management and theme control'
 ---
 
 ## Overview
 
-The application layer provides React hooks that encapsulate order-related business logic and state management. These hooks provide a clean interface for components to interact with order data.
+The application layer provides React hooks that encapsulate business logic and state management. These hooks provide a clean interface for components to interact with order data and theme state.
 
-**Source**: `application/hook/use-order-detail.ts`
+## useOrders
+
+The primary hook for accessing and managing the global order state. Provides access to all orders, status-grouped orders, and order update functionality.
+
+**Source**: `contexts/Orders.context.tsx:108`
+
+### Signature
+
+```typescript
+function useOrders(): {
+  orders: OrderListDto[];
+  updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
+  ordersByStatus: Record<OrderStatus, OrderListDto[]>;
+  isLoading: boolean;
+  error: string | null;
+}
+```
+
+### Returns
+
+<ResponseField name="orders" type="OrderListDto[]">
+  Array of all orders in the system
+</ResponseField>
+
+<ResponseField name="updateOrderStatus" type="function">
+  Async function to update an order's status with optimistic UI updates
+  
+  **Parameters:**
+  - `id` (string): Order ID to update
+  - `status` (OrderStatus): New status to set
+</ResponseField>
+
+<ResponseField name="ordersByStatus" type="Record<OrderStatus, OrderListDto[]>">
+  Orders grouped by their status for easy rendering in columns
+</ResponseField>
+
+<ResponseField name="isLoading" type="boolean">
+  `true` during initial order load, `false` after orders are loaded
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  Error message if initial load fails, or `null` if no error
+</ResponseField>
+
+### Usage
+
+```typescript
+import { useOrders } from '@/contexts/Orders.context';
+
+function OrderBoard() {
+  const { ordersByStatus, updateOrderStatus, isLoading, error } = useOrders();
+  
+  if (isLoading) return <div>Loading orders...</div>;
+  if (error) return <div>Error: {error}</div>;
+  
+  return (
+    <div className="board">
+      {Object.entries(ordersByStatus).map(([status, orders]) => (
+        <Column key={status} status={status}>
+          {orders.map(order => (
+            <OrderCard 
+              key={order.id} 
+              order={order}
+              onStatusChange={(newStatus) => updateOrderStatus(order.id, newStatus)}
+            />
+          ))}
+        </Column>
+      ))}
+    </div>
+  );
+}
+```
+
+<Note>
+  The `useOrders` hook must be used within an `OrdersProvider`. It connects to real-time WebSocket updates automatically and implements optimistic UI updates with rollback on error.
+</Note>
+
+## useTheme
+
+Hook for accessing and controlling the application theme (light/dark mode).
+
+**Source**: `contexts/Theme.context.tsx:42`
+
+### Signature
+
+```typescript
+function useTheme(): {
+  theme: "light" | "dark";
+  toggleTheme: () => void;
+}
+```
+
+### Returns
+
+<ResponseField name="theme" type="'light' | 'dark'">
+  Current theme mode
+</ResponseField>
+
+<ResponseField name="toggleTheme" type="function">
+  Function to toggle between light and dark themes
+</ResponseField>
+
+### Usage
+
+```typescript
+import { useTheme } from '@/contexts/Theme.context';
+
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  
+  return (
+    <button onClick={toggleTheme}>
+      {theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode'}
+    </button>
+  );
+}
+```
+
+<Note>
+  The `useTheme` hook must be used within a `ThemeProvider`. Theme preference is persisted to localStorage automatically.
+</Note>
 
 ## useOrderDetail
 
