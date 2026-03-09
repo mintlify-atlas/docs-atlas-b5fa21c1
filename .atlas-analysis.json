@@ -1,0 +1,106 @@
+{
+  "projectType": "frontend",
+  "projectName": "KDS Frontend",
+  "projectDescription": "A modern Kitchen Display System built with Next.js for real-time order management with drag-and-drop Kanban interface.",
+  "theme": "palm",
+  "primaryColor": "#3730a3",
+  "lightColor": "#eef2ff",
+  "darkColor": "#1e293b",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/order-status",
+              "concepts/realtime-sync"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "components/kanban",
+              "components/order-card",
+              "components/riders",
+              "components/theme-switch"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/setup",
+              "development/structure",
+              "development/styling"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Domain Layer",
+            "pages": [
+              "api/domain/order-status",
+              "api/domain/order-transitions"
+            ]
+          },
+          {
+            "group": "Application Layer",
+            "pages": [
+              "api/application/order-repository",
+              "api/application/order-realtime",
+              "api/application/hooks"
+            ]
+          },
+          {
+            "group": "Infrastructure",
+            "pages": [
+              "api/infrastructure/http-client",
+              "api/infrastructure/socket"
+            ]
+          },
+          {
+            "group": "DTOs",
+            "pages": [
+              "api/dtos/order-list",
+              "api/dtos/order-details",
+              "api/dtos/rider"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Real-time order synchronization via WebSockets",
+    "Drag-and-drop Kanban board for order management",
+    "Clean layered architecture with domain-driven design",
+    "Theme switching with light and dark modes",
+    "Order status transition validation",
+    "Responsive design with mobile support"
+  ],
+  "publicApiSurface": [
+    "OrderStatus (domain types)",
+    "canTransition (transition validator)",
+    "OrderRepository (repository interface)",
+    "OrderRealtime (realtime interface)",
+    "OrderOrchestrator (orchestrator class)",
+    "useOrders (React context hook)",
+    "useOrderDetail (data fetching hook)",
+    "Kanban (main board component)",
+    "OrderCard (order card component)",
+    "Riders (rider display component)",
+    "ThemeSwitch (theme toggle component)"
+  ]
+}
